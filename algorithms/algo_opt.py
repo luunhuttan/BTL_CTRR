@@ -42,3 +42,20 @@ def kruskal(nodes, edges):
         list: A list of Edge objects that form the MST.
     """
     pass
+
+def ford_fulkerson(nodes, edges, source_id, sink_id):
+    """
+    Finds the Maximum Flow using the Ford-Fulkerson algorithm.
+    
+    Args:
+        nodes (list): List of Node objects.
+        edges (list): List of Edge objects.
+        source_id (int): The ID of the source node.
+        sink_id (int): The ID of the sink node.
+        
+    Returns:
+        tuple: (max_flow_value, flow_network)
+            - max_flow_value (int): The maximum flow.
+            - flow_network (list): List of edges with assigned flow values.
+    """
+    pass

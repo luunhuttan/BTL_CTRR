@@ -2,45 +2,46 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import simpledialog
 import math
-import random
 import datetime
 
-# --- 1. Style & Theme Setup ---
+# --- Configuration ---
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
+# --- Data Structures (The Contract) ---
 class Node:
     def __init__(self, id, x, y, label=None):
-        self.id = id
-        self.x = x
-        self.y = y
+        self.id = int(id)
+        self.x = float(x)
+        self.y = float(y)
         self.label = label if label else str(id)
         self.radius = 20
-        self.color = "#3B8ED0"  # Cyan/Blue-ish
+        self.color = "#3B8ED0"  # Modern Blue/Cyan
         self.text_color = "white"
 
     def draw(self, canvas):
         x0, y0 = self.x - self.radius, self.y - self.radius
         x1, y1 = self.x + self.radius, self.y + self.radius
         
-        # Draw circle with outline for better visibility
+        # Draw circle with a clean outline
         canvas.create_oval(x0, y0, x1, y1, fill=self.color, outline="white", width=2)
         
-        # Draw label
+        # Draw label centered
         canvas.create_text(self.x, self.y, text=self.label, fill=self.text_color, font=("Roboto", 12, "bold"))
 
 class Edge:
     def __init__(self, start_node, end_node, weight=1):
         self.start_node = start_node
         self.end_node = end_node
-        self.weight = weight
+        self.weight = int(weight)
         self.color = "gray70"
 
     def draw(self, canvas):
-        # Calculate vector to shorten the line so arrow is visible (not covered by node)
+        # Calculate start and end points
         start_x, start_y = self.start_node.x, self.start_node.y
         end_x, end_y = self.end_node.x, self.end_node.y
         
+        # Calculate vector to shorten the line so arrow is visible (not covered by node)
         dx = end_x - start_x
         dy = end_y - start_y
         distance = math.sqrt(dx**2 + dy**2)
@@ -51,224 +52,193 @@ class Edge:
             ratio = shorten_len / distance
             end_x = end_x - dx * ratio
             end_y = end_y - dy * ratio
-
-        # Draw line
-        canvas.create_line(start_x, start_y, 
-                           end_x, end_y, 
+        
+        # Draw the line
+        # Using arrow=tk.LAST to indicate direction, which is standard for BFS/DFS visualization
+        canvas.create_line(start_x, start_y, end_x, end_y, 
                            fill=self.color, width=2, smooth=True, arrow=tk.LAST)
         
-        # Calculate midpoint
-        mid_x = (self.start_node.x + self.end_node.x) / 2
-        mid_y = (self.start_node.y + self.end_node.y) / 2
+        # Calculate midpoint for weight text
+        mid_x = (start_x + end_x) / 2
+        mid_y = (start_y + end_y) / 2
         
-        # Draw weight with a small background for readability
+        # Draw weight with a small background box for readability
         text = str(self.weight)
+        # Create a small background rectangle behind text
         canvas.create_rectangle(mid_x - 10, mid_y - 10, mid_x + 10, mid_y + 10, fill="#2b2b2b", outline="")
         canvas.create_text(mid_x, mid_y, text=text, fill="gray90", font=("Roboto", 10))
 
+# --- Main Application (GUI Controller) ---
 class GraphApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # Window Setup
-        self.title("Graph Master - Advanced")
+        # 1. Window Setup
+        self.title("GRAPH MASTER")
         self.geometry("1200x800")
-        self.minsize(900, 700)
+        self.minsize(1000, 700)
 
-        # Data Structures
+        # 2. Data Storage
         self.nodes = []
         self.edges = []
         self.node_counter = 1
-        self.selected_node = None
+        self.selected_node = None  # Tracks the first node clicked for edge creation
 
-        # Layout Configuration
+        # 3. Layout Configuration
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # --- GUI Layout ---
         self.create_sidebar()
-        self.create_main_area()
+        self.create_main_canvas()
         
-        # Initial Log
-        self.log_message("Application started.")
-        self.log_message("Ready to draw or generate graphs.")
+        self.log("Application started. Ready.")
 
     def create_sidebar(self):
-        # Left Sidebar Frame
-        self.sidebar_frame = ctk.CTkFrame(self, width=280, corner_radius=0)
-        self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(10, weight=1) # Spacer
+        """Creates the left control panel."""
+        self.sidebar = ctk.CTkFrame(self, width=250, corner_radius=0)
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar.grid_rowconfigure(10, weight=1) # Push log to bottom
 
-        # Title
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Graph Master", 
-                                       font=ctk.CTkFont(size=24, weight="bold"))
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
+        # Header
+        self.lbl_title = ctk.CTkLabel(self.sidebar, text="GRAPH MASTER", font=ctk.CTkFont(size=24, weight="bold"))
+        self.lbl_title.grid(row=0, column=0, padx=20, pady=(20, 10))
 
-        # --- Section 1: Algorithms ---
-        self.algo_label = ctk.CTkLabel(self.sidebar_frame, text="Algorithms", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.algo_label.grid(row=1, column=0, padx=20, pady=(10, 0), sticky="ew")
+        # Group 1: Algorithms
+        self.lbl_algo = ctk.CTkLabel(self.sidebar, text="Algorithms", anchor="w", font=ctk.CTkFont(weight="bold"))
+        self.lbl_algo.grid(row=1, column=0, padx=20, pady=(10, 0), sticky="ew")
 
-        self.btn_bfs = ctk.CTkButton(self.sidebar_frame, text="Run BFS", command=self.run_bfs)
+        self.btn_bfs = ctk.CTkButton(self.sidebar, text="BFS", command=self.run_bfs)
         self.btn_bfs.grid(row=2, column=0, padx=20, pady=5)
-
-        self.btn_dfs = ctk.CTkButton(self.sidebar_frame, text="Run DFS", command=self.run_dfs)
+        
+        self.btn_dfs = ctk.CTkButton(self.sidebar, text="DFS", command=self.run_dfs)
         self.btn_dfs.grid(row=3, column=0, padx=20, pady=5)
-
-        self.btn_dijkstra = ctk.CTkButton(self.sidebar_frame, text="Run Dijkstra", command=self.run_dijkstra)
+        
+        self.btn_dijkstra = ctk.CTkButton(self.sidebar, text="Dijkstra", command=self.run_dijkstra)
         self.btn_dijkstra.grid(row=4, column=0, padx=20, pady=5)
-
-        self.btn_prim = ctk.CTkButton(self.sidebar_frame, text="Run Prim", command=self.run_prim)
+        
+        self.btn_prim = ctk.CTkButton(self.sidebar, text="Prim", command=self.run_prim)
         self.btn_prim.grid(row=5, column=0, padx=20, pady=5)
 
-        # --- Section 2: Operations ---
-        self.ops_label = ctk.CTkLabel(self.sidebar_frame, text="Operations", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.ops_label.grid(row=6, column=0, padx=20, pady=(20, 0), sticky="ew")
+        # Group 2: Features
+        self.lbl_features = ctk.CTkLabel(self.sidebar, text="Features", anchor="w", font=ctk.CTkFont(weight="bold"))
+        self.lbl_features.grid(row=6, column=0, padx=20, pady=(20, 0), sticky="ew")
 
-        self.btn_random = ctk.CTkButton(self.sidebar_frame, text="Random Graph", 
-                                        fg_color="#E67E22", hover_color="#D35400", # Orange for special action
-                                        command=self.generate_random_graph)
+        self.btn_random = ctk.CTkButton(self.sidebar, text="Random Graph", fg_color="#E67E22", hover_color="#D35400", command=self.generate_random)
         self.btn_random.grid(row=7, column=0, padx=20, pady=5)
 
-        self.btn_clear = ctk.CTkButton(self.sidebar_frame, text="Clear Canvas", 
-                                       fg_color="#C0392B", hover_color="#E74C3C", # Red
-                                       command=self.clear_canvas)
-        self.btn_clear.grid(row=8, column=0, padx=20, pady=5)
+        self.btn_save = ctk.CTkButton(self.sidebar, text="Save File", command=self.save_graph)
+        self.btn_save.grid(row=8, column=0, padx=20, pady=5)
 
-        # --- Section 3: Log Console ---
-        self.log_label = ctk.CTkLabel(self.sidebar_frame, text="Log Console", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.log_label.grid(row=11, column=0, padx=20, pady=(10, 0), sticky="ew")
+        self.btn_load = ctk.CTkButton(self.sidebar, text="Load File", command=self.load_graph)
+        self.btn_load.grid(row=9, column=0, padx=20, pady=5)
 
-        self.log_box = ctk.CTkTextbox(self.sidebar_frame, height=150, width=240)
-        self.log_box.grid(row=12, column=0, padx=20, pady=(5, 5))
-        self.log_box.configure(state="disabled") # Read-only initially
+        # Group 3: Utilities
+        self.btn_clear = ctk.CTkButton(self.sidebar, text="Clear Canvas", fg_color="#C0392B", hover_color="#E74C3C", command=self.clear_canvas)
+        self.btn_clear.grid(row=11, column=0, padx=20, pady=(20, 10))
 
-        self.btn_clear_log = ctk.CTkButton(self.sidebar_frame, text="Clear Log", height=24,
-                                           fg_color="gray40", hover_color="gray50",
-                                           command=self.clear_log)
-        self.btn_clear_log.grid(row=13, column=0, padx=20, pady=(0, 20))
+        # Log Console
+        self.lbl_log = ctk.CTkLabel(self.sidebar, text="Log Console", anchor="w", font=ctk.CTkFont(weight="bold"))
+        self.lbl_log.grid(row=12, column=0, padx=20, pady=(10, 0), sticky="ew")
 
-    def create_main_area(self):
-        # Right Main Area (Canvas)
-        self.canvas = tk.Canvas(self, bg="#242424", highlightthickness=0)
+        self.log_box = ctk.CTkTextbox(self.sidebar, height=150)
+        self.log_box.grid(row=13, column=0, padx=20, pady=(5, 20), sticky="ew")
+        self.log_box.configure(state="disabled")
+
+    def create_main_canvas(self):
+        """Creates the drawing surface."""
+        self.canvas = tk.Canvas(self, bg="#2b2b2b", highlightthickness=0)
         self.canvas.grid(row=0, column=1, sticky="nsew")
 
-        # Bind Events
+        # Event Bindings
         self.canvas.bind("<Button-1>", self.on_left_click)
         self.canvas.bind("<Button-3>", self.on_right_click) # Windows/Linux Right Click
-        self.canvas.bind("<Button-2>", self.on_right_click) # Mac Right Click
+        self.canvas.bind("<Button-2>", self.on_right_click) # MacOS Right Click
 
-    # --- Feature C: Logger ---
-    def log_message(self, message):
+    # --- Core Logic: Logging & Drawing ---
+
+    def log(self, message):
+        """Appends a message to the log console with a timestamp."""
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         full_msg = f"[{timestamp}] {message}\n"
         
         self.log_box.configure(state="normal")
         self.log_box.insert("end", full_msg)
-        self.log_box.see("end") # Auto-scroll
+        self.log_box.see("end") # Auto-scroll to bottom
         self.log_box.configure(state="disabled")
 
-    def clear_log(self):
-        self.log_box.configure(state="normal")
-        self.log_box.delete("1.0", "end")
-        self.log_box.configure(state="disabled")
-
-    # --- Feature B: Random Graph Generator ---
-    def generate_random_graph(self):
-        self.clear_canvas(log=False)
+    def draw_graph(self):
+        """Clears and redraws the entire graph."""
+        self.canvas.delete("all")
         
-        # Canvas dimensions (fallback if not yet drawn)
-        w = self.canvas.winfo_width()
-        h = self.canvas.winfo_height()
-        if w < 100: w = 800
-        if h < 100: h = 600
-        
-        padding = 50
-        num_nodes = random.randint(10, 15)
-        
-        self.log_message(f"Generating {num_nodes} random nodes...")
-
-        # Generate Nodes
-        for i in range(num_nodes):
-            x = random.randint(padding, w - padding)
-            y = random.randint(padding, h - padding)
-            self.add_node(x, y, log=False)
-
-        # Generate Edges (Randomly connect nodes)
-        # Strategy: Ensure every node has at least one edge, plus some random extras
-        num_edges_added = 0
-        for i in range(len(self.nodes)):
-            node_a = self.nodes[i]
+        # Draw Edges first (so they appear behind nodes)
+        for edge in self.edges:
+            edge.draw(self.canvas)
             
-            # Connect to 1 or 2 random other nodes
-            targets = random.sample(self.nodes, min(len(self.nodes), 3))
-            for node_b in targets:
-                if node_a != node_b:
-                    # Random weight
-                    weight = random.randint(1, 20)
-                    if self.add_edge(node_a, node_b, weight=weight, log=False):
-                        num_edges_added += 1
+        # Draw Nodes
+        for node in self.nodes:
+            node.draw(self.canvas)
+            
+        # Highlight selected node if any
+        if self.selected_node:
+            x, y, r = self.selected_node.x, self.selected_node.y, self.selected_node.radius + 5
+            self.canvas.create_oval(x-r, y-r, x+r, y+r, outline="yellow", width=3)
 
-        self.redraw()
-        self.log_message(f"Random graph created: {len(self.nodes)} nodes, {num_edges_added} edges.")
-
-    # --- Interactive Logic ---
+    # --- Interactive Mouse Logic ---
 
     def on_left_click(self, event):
-        clicked_node = self.get_node_at(event.x, event.y)
+        x, y = event.x, event.y
+        clicked_node = self.get_node_at(x, y)
 
         if clicked_node:
-            # Node Interaction
+            # Scenario: Clicked on a Node
             if self.selected_node is None:
-                # First click: Select
+                # First click -> Select
                 self.selected_node = clicked_node
-                self.log_message(f"Selected Node {clicked_node.id}")
+                self.log(f"Selected Node {clicked_node.id}. Click another to connect.")
             else:
-                if self.selected_node != clicked_node:
-                    # Second click: Create Edge
-                    self.add_edge(self.selected_node, clicked_node)
-                    self.selected_node = None 
-                else:
-                    # Deselect
+                if self.selected_node == clicked_node:
+                    # Clicked same node -> Deselect
                     self.selected_node = None
-                    self.log_message("Deselected node.")
+                    self.log("Deselected node.")
+                else:
+                    # Clicked different node -> Create Edge
+                    self.add_edge(self.selected_node, clicked_node)
+                    self.selected_node = None # Reset selection
         else:
-            # Empty Space: Create Node
-            self.add_node(event.x, event.y)
-            self.selected_node = None
+            # Scenario: Clicked on Empty Space -> Create Node
+            self.add_node(x, y)
+            self.selected_node = None # Ensure selection is cleared
         
-        self.redraw()
+        self.draw_graph()
 
     def on_right_click(self, event):
-        # Check for Node hit
-        clicked_node = self.get_node_at(event.x, event.y)
+        x, y = event.x, event.y
+        
+        # Check Node Hit
+        clicked_node = self.get_node_at(x, y)
         if clicked_node:
             new_label = simpledialog.askstring("Rename Node", f"Enter new label for Node {clicked_node.id}:", initialvalue=clicked_node.label)
             if new_label:
-                old_label = clicked_node.label
                 clicked_node.label = new_label
-                self.log_message(f"Renamed Node '{old_label}' to '{new_label}'")
-                self.redraw()
+                self.log(f"Renamed Node {clicked_node.id} to '{new_label}'")
+                self.draw_graph()
             return
 
-        # Check for Edge hit
-        clicked_edge = self.get_edge_at(event.x, event.y)
+        # Check Edge Hit
+        clicked_edge = self.get_edge_at(x, y)
         if clicked_edge:
-            new_weight = simpledialog.askinteger("Update Weight", "Enter new weight:", initialvalue=clicked_edge.weight)
+            new_weight = simpledialog.askinteger("Edit Weight", "Enter new weight:", initialvalue=clicked_edge.weight)
             if new_weight is not None:
                 clicked_edge.weight = new_weight
-                self.log_message(f"Updated edge weight to {new_weight}")
-                self.redraw()
+                self.log(f"Updated Edge weight to {new_weight}")
+                self.draw_graph()
             return
 
-        # Background hit
-        if self.selected_node:
-            self.selected_node = None
-            self.redraw()
-
-    # --- Helpers ---
+    # --- Helper Methods ---
 
     def get_node_at(self, x, y):
         for node in self.nodes:
+            # Euclidean distance check
             dist = math.sqrt((node.x - x)**2 + (node.y - y)**2)
             if dist <= node.radius:
                 return node
@@ -276,6 +246,8 @@ class GraphApp(ctk.CTk):
 
     def get_edge_at(self, x, y, threshold=15):
         for edge in self.edges:
+            # Check distance to line segment
+            # Simplified: Check distance to midpoint for now (easier to click label)
             mid_x = (edge.start_node.x + edge.end_node.x) / 2
             mid_y = (edge.start_node.y + edge.end_node.y) / 2
             dist = math.sqrt((mid_x - x)**2 + (mid_y - y)**2)
@@ -283,69 +255,60 @@ class GraphApp(ctk.CTk):
                 return edge
         return None
 
-    def add_node(self, x, y, log=True):
+    def add_node(self, x, y):
         new_node = Node(self.node_counter, x, y)
         self.nodes.append(new_node)
         self.node_counter += 1
-        if log:
-            self.log_message(f"Added Node {new_node.id} at ({x}, {y})")
-        return new_node
+        self.log(f"Node {new_node.id} created at ({x}, {y})")
 
-    def add_edge(self, start, end, weight=1, log=True):
-        # Prevent duplicate edges
+    def add_edge(self, start, end):
+        # Check for duplicates
         for edge in self.edges:
-            if (edge.start_node == start and edge.end_node == end) or \
-               (edge.start_node == end and edge.end_node == start):
-                return False
-        
-        new_edge = Edge(start, end, weight)
+            if (edge.start_node == start and edge.end_node == end):
+                self.log("Edge already exists!")
+                return
+
+        new_edge = Edge(start, end)
         self.edges.append(new_edge)
-        if log:
-            self.log_message(f"Added Edge: {start.label} <-> {end.label} (W: {weight})")
-        return True
+        self.log(f"Connected Node {start.label} to Node {end.label}")
 
-    def redraw(self):
-        self.canvas.delete("all")
-        
-        # Draw Edges (Bottom)
-        for edge in self.edges:
-            edge.draw(self.canvas)
-            
-        # Draw Nodes (Top)
-        for node in self.nodes:
-            node.draw(self.canvas)
-            
-        # Highlight selected
-        if self.selected_node:
-            x, y, r = self.selected_node.x, self.selected_node.y, self.selected_node.radius + 4
-            self.canvas.create_oval(x-r, y-r, x+r, y+r, outline="yellow", width=3)
-
-    def clear_canvas(self, log=True):
+    def clear_canvas(self):
         self.nodes = []
         self.edges = []
         self.node_counter = 1
         self.selected_node = None
-        self.redraw()
-        if log:
-            self.log_message("Canvas cleared.")
+        self.draw_graph()
+        self.log("Canvas cleared.")
 
-    # --- Algorithm Placeholders ---
+    # --- Placeholder Methods (For Team Members) ---
+
     def run_bfs(self):
-        self.log_message("Starting BFS Algorithm...")
-        # Logic would go here
-        self.log_message("BFS Completed.")
-    
+        self.log("BFS: Feature coming soon (Member 2)...")
+        # TODO: Connected to Member 2's code
+
     def run_dfs(self):
-        self.log_message("Starting DFS Algorithm...")
-        self.log_message("DFS Completed.")
+        self.log("DFS: Feature coming soon (Member 2)...")
+        # TODO: Connected to Member 2's code
 
     def run_dijkstra(self):
-        self.log_message("Starting Dijkstra's Algorithm...")
-        self.log_message("Dijkstra Completed.")
+        self.log("Dijkstra: Feature coming soon (Member 3)...")
+        # TODO: Connected to Member 3's code
 
     def run_prim(self):
-        self.log_message("Starting Prim's Algorithm...")
-        self.log_message("Prim Completed.")
+        self.log("Prim: Feature coming soon (Member 3)...")
+        # TODO: Connected to Member 3's code
+
+    def generate_random(self):
+        self.log("Random Graph: Feature coming soon (Member 4)...")
+        # TODO: Connected to Member 4's code
+
+    def save_graph(self):
+        self.log("Save File: Feature coming soon (Member 5)...")
+        # TODO: Connected to Member 5's code
+
+    def load_graph(self):
+        self.log("Load File: Feature coming soon (Member 5)...")
+        # TODO: Connected to Member 5's code
 
 if __name__ == "__main__":
     app = GraphApp()

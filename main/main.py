@@ -119,29 +119,32 @@ class GraphApp(ctk.CTk):
         self.btn_prim = ctk.CTkButton(self.sidebar, text="Prim", command=self.run_prim)
         self.btn_prim.grid(row=5, column=0, padx=20, pady=5)
 
+        self.btn_bipartite = ctk.CTkButton(self.sidebar, text="Check Bipartite", command=self.run_check_bipartite)
+        self.btn_bipartite.grid(row=6, column=0, padx=20, pady=5)
+
         # Group 2: Features
         self.lbl_features = ctk.CTkLabel(self.sidebar, text="Features", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_features.grid(row=6, column=0, padx=20, pady=(20, 0), sticky="ew")
+        self.lbl_features.grid(row=7, column=0, padx=20, pady=(20, 0), sticky="ew")
 
         self.btn_random = ctk.CTkButton(self.sidebar, text="Random Graph", fg_color="#E67E22", hover_color="#D35400", command=self.generate_random)
-        self.btn_random.grid(row=7, column=0, padx=20, pady=5)
+        self.btn_random.grid(row=8, column=0, padx=20, pady=5)
 
         self.btn_save = ctk.CTkButton(self.sidebar, text="Save File", command=self.save_graph)
-        self.btn_save.grid(row=8, column=0, padx=20, pady=5)
+        self.btn_save.grid(row=9, column=0, padx=20, pady=5)
 
         self.btn_load = ctk.CTkButton(self.sidebar, text="Load File", command=self.load_graph)
-        self.btn_load.grid(row=9, column=0, padx=20, pady=5)
+        self.btn_load.grid(row=10, column=0, padx=20, pady=5)
 
         # Group 3: Utilities
         self.btn_clear = ctk.CTkButton(self.sidebar, text="Clear Canvas", fg_color="#C0392B", hover_color="#E74C3C", command=self.clear_canvas)
-        self.btn_clear.grid(row=11, column=0, padx=20, pady=(20, 10))
+        self.btn_clear.grid(row=12, column=0, padx=20, pady=(20, 10))
 
         # Log Console
         self.lbl_log = ctk.CTkLabel(self.sidebar, text="Log Console", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_log.grid(row=12, column=0, padx=20, pady=(10, 0), sticky="ew")
+        self.lbl_log.grid(row=13, column=0, padx=20, pady=(10, 0), sticky="ew")
 
         self.log_box = ctk.CTkTextbox(self.sidebar, height=150)
-        self.log_box.grid(row=13, column=0, padx=20, pady=(5, 20), sticky="ew")
+        self.log_box.grid(row=14, column=0, padx=20, pady=(5, 20), sticky="ew")
         self.log_box.configure(state="disabled")
 
     def create_main_canvas(self):
@@ -297,6 +300,10 @@ class GraphApp(ctk.CTk):
     def run_prim(self):
         self.log("Prim: Feature coming soon (Member 3)...")
         # TODO: Connected to Member 3's code
+
+    def run_check_bipartite(self):
+        self.log("Check Bipartite: Feature coming soon (Member 2)...")
+        # TODO: Connected to Member 2's code
 
     def generate_random(self):
         self.log("Random Graph: Feature coming soon (Member 4)...")

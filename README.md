@@ -1,58 +1,68 @@
-# Graph Master
+# Quản Lý Đồ Thị (Graph Master)
 
-**Graph Master** là một ứng dụng giao diện đồ họa (GUI) hiện đại, chuyên nghiệp để trực quan hóa các thuật toán đồ thị. Ứng dụng được xây dựng bằng Python và thư viện `customtkinter`, mang lại trải nghiệm người dùng mượt mà với giao diện Dark Mode.
+**Quản Lý Đồ Thị** là một ứng dụng giao diện đồ họa (GUI) hiện đại để trực quan hóa và xử lý các thuật toán đồ thị. Ứng dụng được xây dựng bằng Python và thư viện `customtkinter`, hỗ trợ vẽ đồ thị tương tác và chạy các thuật toán phổ biến.
 
 ## ✨ Tính Năng Chính
 
-*   **Giao Diện Hiện Đại**: Thiết kế Dashboard chuyên nghiệp với tông màu tối (Dark Mode) và điểm nhấn màu xanh (Blue Theme).
+*   **Giao Diện Tiếng Việt**: Thân thiện, dễ sử dụng với chế độ tối (Dark Mode).
 *   **Vẽ Đồ Thị Tương Tác**:
-    *   **Thêm Nút (Node)**: Nhấn chuột trái vào vùng trống.
-    *   **Thêm Cạnh (Edge)**: Nhấn chuột trái vào một nút để chọn (highlight vàng), sau đó nhấn vào nút khác để nối. Cạnh có mũi tên chỉ hướng.
-    *   **Chỉnh Sửa**: Nhấn chuột phải vào Nút để đổi tên, hoặc nhấn chuột phải vào Cạnh (số trọng số) để thay đổi trọng số.
-*   **Tạo Đồ Thị Ngẫu Nhiên**: Tính năng tự động sinh ra một đồ thị ngẫu nhiên với các nút và liên kết để kiểm thử nhanh.
-*   **Log Console**: Bảng nhật ký hiển thị chi tiết các thao tác và bước chạy của thuật toán theo thời gian thực.
-*   **Hỗ Trợ Thuật Toán**: Các nút chức năng sẵn sàng cho việc tích hợp BFS, DFS, Dijkstra, và Prim.
+    *   **Thêm Đỉnh**: Nhấn chuột trái vào vùng trống.
+    *   **Thêm Cạnh**: Nhấn chuột trái vào một đỉnh để chọn (viền vàng), sau đó nhấn vào đỉnh khác để nối.
+    *   **Chỉnh Sửa**: Nhấn chuột phải vào Đỉnh để đổi tên, hoặc nhấn chuột phải vào Cạnh để thay đổi trọng số.
+*   **Thuật Toán Đa Dạng**: Hỗ trợ khung sườn cho BFS, DFS, Dijkstra, Prim, Kruskal, Ford-Fulkerson, Fleury, Hierholzer.
+*   **Tiện Ích**:
+    *   Tạo đồ thị ngẫu nhiên.
+    *   Lưu/Đọc đồ thị từ file.
+    *   Xem biểu diễn dưới dạng Ma trận kề/Danh sách kề.
+    *   Nhật ký hoạt động (Log Console) chi tiết.
 
 ## 🛠️ Cài Đặt
 
-1.  **Yêu cầu**: Máy tính đã cài đặt Python 3.x.
+1.  **Yêu cầu**: Python 3.x.
 2.  **Cài đặt thư viện**:
-    Mở terminal và chạy lệnh sau để cài đặt `customtkinter`:
     ```bash
     pip install customtkinter
     ```
 
-## 🚀 Hướng Dẫn Sử Dụng
+## 🚀 Hướng Dẫn Chạy
 
-1.  **Chạy ứng dụng**:
-    Từ thư mục gốc của dự án, chạy lệnh:
-    ```bash
-    python main/main.py
-    ```
+Từ thư mục gốc của dự án (`d:\BTL_CTRR`), chạy lệnh:
 
-2.  **Thao tác chuột**:
-    *   **Chuột Trái (Left Click)**:
-        *   Click vào vùng trống: Tạo nút mới.
-        *   Click vào nút: Chọn nút (để chuẩn bị nối cạnh).
-    *   **Chuột Phải (Right Click)**:
-        *   Click vào Nút: Đổi tên nút.
-        *   Click vào Cạnh (số trọng số): Đổi trọng số.
-
-3.  **Chức năng trên thanh công cụ**:
-    *   **Algorithms**: Chạy các thuật toán (BFS, DFS, v.v.).
-    *   **Random Graph**: Tạo mới một đồ thị ngẫu nhiên.
-    *   **Clear Canvas**: Xóa toàn bộ màn hình vẽ.
-    *   **Clear Log**: Xóa lịch sử nhật ký.
+```bash
+python main/main.py
+```
 
 ## 📂 Cấu Trúc Dự Án
 
+Dự án được tổ chức theo mô hình module hóa để dễ dàng quản lý và phát triển nhóm:
+
 ```
 BTL_CTRR/
-├── main/
-│   └── main.py       # Mã nguồn chính của ứng dụng (GUI, Logic)
-├── algorithms/       # (Dự kiến) Chứa các file cài đặt thuật toán
-└── README.md         # Hướng dẫn sử dụng
+├── main/                   # Chứa mã nguồn chính của ứng dụng
+│   ├── main.py             # Controller: Điểm bắt đầu, xử lý sự kiện chính
+│   ├── app_ui.py           # View: Cấu hình giao diện, nút bấm, bố cục
+│   └── graph_objects.py    # Model: Định nghĩa lớp Node (Đỉnh) và Edge (Cạnh)
+│
+├── algorithms/             # Chứa logic các thuật toán (Skeleton code)
+│   ├── algo_traversal.py   # BFS, DFS, Kiểm tra đồ thị 2 phía
+│   ├── algo_opt.py         # Dijkstra, Prim, Kruskal, Ford-Fulkerson
+│   └── algo_euler.py       # Fleury, Hierholzer
+│
+├── data/                   # Xử lý dữ liệu và tiện ích
+│   ├── data_handler.py     # Lưu/Đọc file JSON, chuyển đổi ma trận/danh sách kề
+│   └── generator.py        # Thuật toán sinh đồ thị ngẫu nhiên
+│
+└── README.md               # Tài liệu hướng dẫn
 ```
 
+## 👥 Phân Công (Gợi ý)
+
+*   **Thành viên 1**: Phát triển GUI (`main/`) - *Đã hoàn thành cơ bản*.
+*   **Thành viên 2**: Cài đặt `algorithms/algo_traversal.py` (BFS, DFS, Bipartite).
+*   **Thành viên 3**: Cài đặt `algorithms/algo_opt.py` (Dijkstra, Prim, Kruskal, Max Flow).
+*   **Thành viên 4**: Cài đặt `data/data_handler.py` và hiển thị ma trận.
+*   **Thành viên 5**: Cài đặt `data/generator.py` (Random Graph) và Lưu/Đọc file.
+*   **Thành viên 6**: Cài đặt `algorithms/algo_euler.py` (Fleury, Hierholzer).
+
 ---
-*Dự án BTL_CTRR - Graph Master*
+*Bài Tập Lớn - Cấu Trúc Rời Rạc*

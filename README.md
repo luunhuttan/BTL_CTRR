@@ -55,14 +55,5 @@ BTL_CTRR/
 └── README.md               # Tài liệu hướng dẫn
 ```
 
-## 👥 Phân Công (Gợi ý)
-
-*   **Thành viên 1**: Phát triển GUI (`main/`) - *Đã hoàn thành cơ bản*.
-*   **Thành viên 2**: Cài đặt `algorithms/algo_traversal.py` (BFS, DFS, Bipartite).
-*   **Thành viên 3**: Cài đặt `algorithms/algo_opt.py` (Dijkstra, Prim, Kruskal, Max Flow).
-*   **Thành viên 4**: Cài đặt `data/data_handler.py` và hiển thị ma trận.
-*   **Thành viên 5**: Cài đặt `data/generator.py` (Random Graph) và Lưu/Đọc file.
-*   **Thành viên 6**: Cài đặt `algorithms/algo_euler.py` (Fleury, Hierholzer).
-
 ---
 *Bài Tập Lớn - Cấu Trúc Rời Rạc*

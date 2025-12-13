@@ -1,72 +1,20 @@
 import customtkinter as ctk
-import tkinter as tk
 from tkinter import simpledialog
 import math
 import datetime
+import sys
+import os
+
+# Add parent directory to path to allow importing from 'data' and 'algorithms'
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Import separated modules
+from graph_objects import Node, Edge
+from app_ui import GraphGUI
 
 # --- Configuration ---
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
-
-# --- Data Structures (The Contract) ---
-class Node:
-    def __init__(self, id, x, y, label=None):
-        self.id = int(id)
-        self.x = float(x)
-        self.y = float(y)
-        self.label = label if label else str(id)
-        self.radius = 20
-        self.color = "#3B8ED0"  # Modern Blue/Cyan
-        self.text_color = "white"
-
-    def draw(self, canvas):
-        x0, y0 = self.x - self.radius, self.y - self.radius
-        x1, y1 = self.x + self.radius, self.y + self.radius
-        
-        # Draw circle with a clean outline
-        canvas.create_oval(x0, y0, x1, y1, fill=self.color, outline="white", width=2)
-        
-        # Draw label centered
-        canvas.create_text(self.x, self.y, text=self.label, fill=self.text_color, font=("Roboto", 12, "bold"))
-
-class Edge:
-    def __init__(self, start_node, end_node, weight=1):
-        self.start_node = start_node
-        self.end_node = end_node
-        self.weight = int(weight)
-        self.color = "gray70"
-
-    def draw(self, canvas):
-        # Calculate start and end points
-        start_x, start_y = self.start_node.x, self.start_node.y
-        end_x, end_y = self.end_node.x, self.end_node.y
-        
-        # Calculate vector to shorten the line so arrow is visible (not covered by node)
-        dx = end_x - start_x
-        dy = end_y - start_y
-        distance = math.sqrt(dx**2 + dy**2)
-        
-        if distance > 0:
-            # Shorten by node radius (20) + small buffer
-            shorten_len = self.end_node.radius + 2 
-            ratio = shorten_len / distance
-            end_x = end_x - dx * ratio
-            end_y = end_y - dy * ratio
-        
-        # Draw the line
-        # Using arrow=tk.LAST to indicate direction, which is standard for BFS/DFS visualization
-        canvas.create_line(start_x, start_y, end_x, end_y, 
-                           fill=self.color, width=2, smooth=True, arrow=tk.LAST)
-        
-        # Calculate midpoint for weight text
-        mid_x = (start_x + end_x) / 2
-        mid_y = (start_y + end_y) / 2
-        
-        # Draw weight with a small background box for readability
-        text = str(self.weight)
-        # Create a small background rectangle behind text
-        canvas.create_rectangle(mid_x - 10, mid_y - 10, mid_x + 10, mid_y + 10, fill="#2b2b2b", outline="")
-        canvas.create_text(mid_x, mid_y, text=text, fill="gray90", font=("Roboto", 10))
 
 # --- Main Application (GUI Controller) ---
 class GraphApp(ctk.CTk):
@@ -74,7 +22,7 @@ class GraphApp(ctk.CTk):
         super().__init__()
 
         # 1. Window Setup
-        self.title("GRAPH MASTER")
+        self.title("QUẢN LÝ ĐỒ THỊ")
         self.geometry("1200x800")
         self.minsize(1000, 700)
 
@@ -88,98 +36,17 @@ class GraphApp(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.create_sidebar()
-        self.create_main_canvas()
+        # 4. Initialize UI via Helper Class
+        self.ui = GraphGUI(self)
         
-        self.log("Application started. Ready.")
-
-    def create_sidebar(self):
-        """Creates the left control panel."""
-        self.sidebar = ctk.CTkFrame(self, width=250, corner_radius=0)
-        self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(10, weight=1) # Push log to bottom
-
-        # Header
-        self.lbl_title = ctk.CTkLabel(self.sidebar, text="GRAPH MASTER", font=ctk.CTkFont(size=24, weight="bold"))
-        self.lbl_title.grid(row=0, column=0, padx=20, pady=(20, 10))
-
-        # Group 1: Algorithms
-        self.lbl_algo = ctk.CTkLabel(self.sidebar, text="Algorithms", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_algo.grid(row=1, column=0, padx=20, pady=(10, 0), sticky="ew")
-
-        self.btn_bfs = ctk.CTkButton(self.sidebar, text="BFS", command=self.run_bfs)
-        self.btn_bfs.grid(row=2, column=0, padx=20, pady=5)
-        
-        self.btn_dfs = ctk.CTkButton(self.sidebar, text="DFS", command=self.run_dfs)
-        self.btn_dfs.grid(row=3, column=0, padx=20, pady=5)
-        
-        self.btn_dijkstra = ctk.CTkButton(self.sidebar, text="Dijkstra", command=self.run_dijkstra)
-        self.btn_dijkstra.grid(row=4, column=0, padx=20, pady=5)
-        
-        self.btn_prim = ctk.CTkButton(self.sidebar, text="Prim", command=self.run_prim)
-        self.btn_prim.grid(row=5, column=0, padx=20, pady=5)
-
-        self.btn_bipartite = ctk.CTkButton(self.sidebar, text="Check Bipartite", command=self.run_check_bipartite)
-        self.btn_bipartite.grid(row=6, column=0, padx=20, pady=5)
-
-        # Advanced Algorithms
-        self.lbl_adv = ctk.CTkLabel(self.sidebar, text="Advanced Algo", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_adv.grid(row=7, column=0, padx=20, pady=(10, 0), sticky="ew")
-
-        self.btn_kruskal = ctk.CTkButton(self.sidebar, text="Kruskal", command=self.run_kruskal)
-        self.btn_kruskal.grid(row=8, column=0, padx=20, pady=5)
-
-        self.btn_ford = ctk.CTkButton(self.sidebar, text="Ford-Fulkerson", command=self.run_ford_fulkerson)
-        self.btn_ford.grid(row=9, column=0, padx=20, pady=5)
-
-        self.btn_fleury = ctk.CTkButton(self.sidebar, text="Fleury", command=self.run_fleury)
-        self.btn_fleury.grid(row=10, column=0, padx=20, pady=5)
-
-        self.btn_hierholzer = ctk.CTkButton(self.sidebar, text="Hierholzer", command=self.run_hierholzer)
-        self.btn_hierholzer.grid(row=11, column=0, padx=20, pady=5)
-
-        # Group 2: Features
-        self.lbl_features = ctk.CTkLabel(self.sidebar, text="Features", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_features.grid(row=12, column=0, padx=20, pady=(20, 0), sticky="ew")
-
-        self.btn_random = ctk.CTkButton(self.sidebar, text="Random Graph", fg_color="#E67E22", hover_color="#D35400", command=self.generate_random)
-        self.btn_random.grid(row=13, column=0, padx=20, pady=5)
-
-        self.btn_save = ctk.CTkButton(self.sidebar, text="Save File", command=self.save_graph)
-        self.btn_save.grid(row=14, column=0, padx=20, pady=5)
-
-        self.btn_load = ctk.CTkButton(self.sidebar, text="Load File", command=self.load_graph)
-        self.btn_load.grid(row=15, column=0, padx=20, pady=5)
-
-        self.btn_matrix = ctk.CTkButton(self.sidebar, text="Show Matrix/List", command=self.show_representations)
-        self.btn_matrix.grid(row=16, column=0, padx=20, pady=5)
-
-        # Group 3: Utilities
-        self.btn_clear = ctk.CTkButton(self.sidebar, text="Clear Canvas", fg_color="#C0392B", hover_color="#E74C3C", command=self.clear_canvas)
-        self.btn_clear.grid(row=17, column=0, padx=20, pady=(20, 10))
-
-        # Log Console
-        self.lbl_log = ctk.CTkLabel(self.sidebar, text="Log Console", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_log.grid(row=18, column=0, padx=20, pady=(10, 0), sticky="ew")
-
-        self.log_box = ctk.CTkTextbox(self.sidebar, height=150)
-        self.log_box.grid(row=19, column=0, padx=20, pady=(5, 20), sticky="ew")
-        self.log_box.configure(state="disabled")
-
-    def create_main_canvas(self):
-        """Creates the drawing surface."""
-        self.canvas = tk.Canvas(self, bg="#2b2b2b", highlightthickness=0)
-        self.canvas.grid(row=0, column=1, sticky="nsew")
-
-        # Event Bindings
-        self.canvas.bind("<Button-1>", self.on_left_click)
-        self.canvas.bind("<Button-3>", self.on_right_click) # Windows/Linux Right Click
-        self.canvas.bind("<Button-2>", self.on_right_click) # MacOS Right Click
+        self.log("Ứng dụng đã khởi động. Sẵn sàng.")
 
     # --- Core Logic: Logging & Drawing ---
 
     def log(self, message):
         """Appends a message to the log console with a timestamp."""
+        if not hasattr(self, 'log_box'): return
+        
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         full_msg = f"[{timestamp}] {message}\n"
         
@@ -190,6 +57,8 @@ class GraphApp(ctk.CTk):
 
     def draw_graph(self):
         """Clears and redraws the entire graph."""
+        if not hasattr(self, 'canvas'): return
+        
         self.canvas.delete("all")
         
         # Draw Edges first (so they appear behind nodes)
@@ -216,12 +85,12 @@ class GraphApp(ctk.CTk):
             if self.selected_node is None:
                 # First click -> Select
                 self.selected_node = clicked_node
-                self.log(f"Selected Node {clicked_node.id}. Click another to connect.")
+                self.log(f"Đã chọn Đỉnh {clicked_node.id}. Nhấn vào đỉnh khác để nối.")
             else:
                 if self.selected_node == clicked_node:
                     # Clicked same node -> Deselect
                     self.selected_node = None
-                    self.log("Deselected node.")
+                    self.log("Đã bỏ chọn đỉnh.")
                 else:
                     # Clicked different node -> Create Edge
                     self.add_edge(self.selected_node, clicked_node)
@@ -239,20 +108,20 @@ class GraphApp(ctk.CTk):
         # Check Node Hit
         clicked_node = self.get_node_at(x, y)
         if clicked_node:
-            new_label = simpledialog.askstring("Rename Node", f"Enter new label for Node {clicked_node.id}:", initialvalue=clicked_node.label)
+            new_label = simpledialog.askstring("Đổi tên Đỉnh", f"Nhập tên mới cho Đỉnh {clicked_node.id}:", initialvalue=clicked_node.label)
             if new_label:
                 clicked_node.label = new_label
-                self.log(f"Renamed Node {clicked_node.id} to '{new_label}'")
+                self.log(f"Đã đổi tên Đỉnh {clicked_node.id} thành '{new_label}'")
                 self.draw_graph()
             return
 
         # Check Edge Hit
         clicked_edge = self.get_edge_at(x, y)
         if clicked_edge:
-            new_weight = simpledialog.askinteger("Edit Weight", "Enter new weight:", initialvalue=clicked_edge.weight)
+            new_weight = simpledialog.askinteger("Sửa Trọng số", "Nhập trọng số mới:", initialvalue=clicked_edge.weight)
             if new_weight is not None:
                 clicked_edge.weight = new_weight
-                self.log(f"Updated Edge weight to {new_weight}")
+                self.log(f"Đã cập nhật trọng số cạnh thành {new_weight}")
                 self.draw_graph()
             return
 
@@ -281,18 +150,18 @@ class GraphApp(ctk.CTk):
         new_node = Node(self.node_counter, x, y)
         self.nodes.append(new_node)
         self.node_counter += 1
-        self.log(f"Node {new_node.id} created at ({x}, {y})")
+        self.log(f"Đỉnh {new_node.id} được tạo tại ({x}, {y})")
 
     def add_edge(self, start, end):
         # Check for duplicates
         for edge in self.edges:
             if (edge.start_node == start and edge.end_node == end):
-                self.log("Edge already exists!")
+                self.log("Cạnh đã tồn tại!")
                 return
 
         new_edge = Edge(start, end)
         self.edges.append(new_edge)
-        self.log(f"Connected Node {start.label} to Node {end.label}")
+        self.log(f"Đã nối Đỉnh {start.label} với Đỉnh {end.label}")
 
     def clear_canvas(self):
         self.nodes = []
@@ -300,60 +169,60 @@ class GraphApp(ctk.CTk):
         self.node_counter = 1
         self.selected_node = None
         self.draw_graph()
-        self.log("Canvas cleared.")
+        self.log("Đã xóa bảng vẽ.")
 
     # --- Placeholder Methods (For Team Members) ---
 
     def run_bfs(self):
-        self.log("BFS: Feature coming soon (Member 2)...")
+        self.log("BFS: Tính năng sắp ra mắt (Thành viên 2)...")
         # TODO: Connected to Member 2's code
 
     def run_dfs(self):
-        self.log("DFS: Feature coming soon (Member 2)...")
+        self.log("DFS: Tính năng sắp ra mắt (Thành viên 2)...")
         # TODO: Connected to Member 2's code
 
     def run_dijkstra(self):
-        self.log("Dijkstra: Feature coming soon (Member 3)...")
+        self.log("Dijkstra: Tính năng sắp ra mắt (Thành viên 3)...")
         # TODO: Connected to Member 3's code
 
     def run_prim(self):
-        self.log("Prim: Feature coming soon (Member 3)...")
+        self.log("Prim: Tính năng sắp ra mắt (Thành viên 3)...")
         # TODO: Connected to Member 3's code
 
     def run_check_bipartite(self):
-        self.log("Check Bipartite: Feature coming soon (Member 2)...")
+        self.log("Kiểm tra 2 phía: Tính năng sắp ra mắt (Thành viên 2)...")
         # TODO: Connected to Member 2's code
 
     def run_kruskal(self):
-        self.log("Kruskal: Feature coming soon (Member 3)...")
+        self.log("Kruskal: Tính năng sắp ra mắt (Thành viên 3)...")
         # TODO: Connected to Member 3's code
 
     def run_ford_fulkerson(self):
-        self.log("Ford-Fulkerson: Feature coming soon (Member 3)...")
+        self.log("Ford-Fulkerson: Tính năng sắp ra mắt (Thành viên 3)...")
         # TODO: Connected to Member 3's code
 
     def run_fleury(self):
-        self.log("Fleury: Feature coming soon (Member 3/6)...")
+        self.log("Fleury: Tính năng sắp ra mắt (Thành viên 3/6)...")
         # TODO: Connected to Member 3/6's code
 
     def run_hierholzer(self):
-        self.log("Hierholzer: Feature coming soon (Member 3/6)...")
+        self.log("Hierholzer: Tính năng sắp ra mắt (Thành viên 3/6)...")
         # TODO: Connected to Member 3/6's code
 
     def show_representations(self):
-        self.log("Show Matrix/List: Feature coming soon (Member 4)...")
+        self.log("Hiện Ma trận/DS kề: Tính năng sắp ra mắt (Thành viên 4)...")
         # TODO: Connected to Member 4's code
 
     def generate_random(self):
-        self.log("Random Graph: Feature coming soon (Member 4)...")
+        self.log("Tạo đồ thị ngẫu nhiên: Tính năng sắp ra mắt (Thành viên 4)...")
         # TODO: Connected to Member 4's code
 
     def save_graph(self):
-        self.log("Save File: Feature coming soon (Member 5)...")
+        self.log("Lưu file: Tính năng sắp ra mắt (Thành viên 5)...")
         # TODO: Connected to Member 5's code
 
     def load_graph(self):
-        self.log("Load File: Feature coming soon (Member 5)...")
+        self.log("Đọc file: Tính năng sắp ra mắt (Thành viên 5)...")
         # TODO: Connected to Member 5's code
 
 if __name__ == "__main__":

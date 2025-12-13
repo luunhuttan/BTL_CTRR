@@ -1,61 +1,61 @@
-# MEMBER 3: Implement the logic inside these functions. Remember to use `edge.weight` for calculations.
+# THÀNH VIÊN 3: Cài đặt logic bên trong các hàm này. Nhớ sử dụng `edge.weight` để tính toán.
 
 def dijkstra(nodes, edges, start_id, end_id):
     """
-    Finds the shortest path between two nodes using Dijkstra's algorithm.
+    Tìm đường đi ngắn nhất giữa hai đỉnh sử dụng thuật toán Dijkstra.
     
-    Args:
-        nodes (list): List of Node objects.
-        edges (list): List of Edge objects.
-        start_id (int): The ID of the starting node.
-        end_id (int): The ID of the destination node.
+    Tham số:
+        nodes (list): Danh sách các đối tượng Node.
+        edges (list): Danh sách các đối tượng Edge.
+        start_id (int): ID của đỉnh bắt đầu.
+        end_id (int): ID của đỉnh đích.
         
-    Returns:
+    Trả về:
         tuple: (path_list_of_ids, total_weight)
-            - path_list_of_ids (list): List of node IDs representing the shortest path.
-            - total_weight (int/float): The sum of weights along the path.
+            - path_list_of_ids (list): Danh sách các ID đỉnh biểu diễn đường đi ngắn nhất.
+            - total_weight (int/float): Tổng trọng số dọc theo đường đi.
     """
     pass
 
 def prim(nodes, edges):
     """
-    Finds the Minimum Spanning Tree (MST) using Prim's algorithm.
+    Tìm Cây khung nhỏ nhất (MST) sử dụng thuật toán Prim.
     
-    Args:
-        nodes (list): List of Node objects.
-        edges (list): List of Edge objects.
+    Tham số:
+        nodes (list): Danh sách các đối tượng Node.
+        edges (list): Danh sách các đối tượng Edge.
         
-    Returns:
-        list: A list of Edge objects (or tuples representing connections) that form the MST.
+    Trả về:
+        list: Danh sách các đối tượng Edge (hoặc tuple biểu diễn kết nối) tạo thành MST.
     """
     pass
 
 def kruskal(nodes, edges):
     """
-    Finds the Minimum Spanning Tree (MST) using Kruskal's algorithm.
+    Tìm Cây khung nhỏ nhất (MST) sử dụng thuật toán Kruskal.
     
-    Args:
-        nodes (list): List of Node objects.
-        edges (list): List of Edge objects.
+    Tham số:
+        nodes (list): Danh sách các đối tượng Node.
+        edges (list): Danh sách các đối tượng Edge.
         
-    Returns:
-        list: A list of Edge objects that form the MST.
+    Trả về:
+        list: Danh sách các đối tượng Edge tạo thành MST.
     """
     pass
 
 def ford_fulkerson(nodes, edges, source_id, sink_id):
     """
-    Finds the Maximum Flow using the Ford-Fulkerson algorithm.
+    Tìm Luồng cực đại sử dụng thuật toán Ford-Fulkerson.
     
-    Args:
-        nodes (list): List of Node objects.
-        edges (list): List of Edge objects.
-        source_id (int): The ID of the source node.
-        sink_id (int): The ID of the sink node.
+    Tham số:
+        nodes (list): Danh sách các đối tượng Node.
+        edges (list): Danh sách các đối tượng Edge.
+        source_id (int): ID của đỉnh nguồn.
+        sink_id (int): ID của đỉnh đích.
         
-    Returns:
+    Trả về:
         tuple: (max_flow_value, flow_network)
-            - max_flow_value (int): The maximum flow.
-            - flow_network (list): List of edges with assigned flow values.
+            - max_flow_value (int): Giá trị luồng cực đại.
+            - flow_network (list): Danh sách các cạnh với giá trị luồng đã gán.
     """
     pass

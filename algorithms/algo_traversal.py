@@ -1,44 +1,44 @@
-# MEMBER 2: Implement the logic inside these functions. Do not change the function names or arguments.
+# THÀNH VIÊN 2: Cài đặt logic bên trong các hàm này. Không thay đổi tên hàm hoặc tham số.
 
 def bfs(nodes, edges, start_id):
     """
-    Performs Breadth-First Search (BFS) on the graph.
+    Thực hiện thuật toán Tìm kiếm theo chiều rộng (BFS) trên đồ thị.
     
-    Args:
-        nodes (list): List of Node objects.
-        edges (list): List of Edge objects.
-        start_id (int): The ID of the starting node.
+    Tham số:
+        nodes (list): Danh sách các đối tượng Node.
+        edges (list): Danh sách các đối tượng Edge.
+        start_id (int): ID của đỉnh bắt đầu.
         
-    Returns:
-        list: A list of visited Node IDs in the order they were visited.
+    Trả về:
+        list: Danh sách các ID đỉnh đã thăm theo thứ tự.
     """
     pass
 
 def dfs(nodes, edges, start_id):
     """
-    Performs Depth-First Search (DFS) on the graph.
+    Thực hiện thuật toán Tìm kiếm theo chiều sâu (DFS) trên đồ thị.
     
-    Args:
-        nodes (list): List of Node objects.
-        edges (list): List of Edge objects.
-        start_id (int): The ID of the starting node.
+    Tham số:
+        nodes (list): Danh sách các đối tượng Node.
+        edges (list): Danh sách các đối tượng Edge.
+        start_id (int): ID của đỉnh bắt đầu.
         
-    Returns:
-        list: A list of visited Node IDs in the order they were visited.
+    Trả về:
+        list: Danh sách các ID đỉnh đã thăm theo thứ tự.
     """
     pass
 
 def check_bipartite(nodes, edges):
     """
-    Checks if the graph is bipartite.
+    Kiểm tra xem đồ thị có phải là đồ thị hai phía (bipartite) hay không.
     
-    Args:
-        nodes (list): List of Node objects.
-        edges (list): List of Edge objects.
+    Tham số:
+        nodes (list): Danh sách các đối tượng Node.
+        edges (list): Danh sách các đối tượng Edge.
         
-    Returns:
+    Trả về:
         tuple: (bool, dict)
-            - bool: True if the graph is bipartite, False otherwise.
-            - dict: A dictionary mapping node_id to color_code (e.g., 0 or 1) if bipartite.
+            - bool: True nếu đồ thị là hai phía, False nếu không.
+            - dict: Một dictionary ánh xạ node_id sang mã màu (ví dụ: 0 hoặc 1) nếu là hai phía.
     """
     pass

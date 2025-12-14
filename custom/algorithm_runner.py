@@ -13,6 +13,7 @@ from algorithms.algo_opt import (
 	prim_trace,
 )
 from algorithms.algo_traversal import bfs, dfs, check_bipartite
+from algorithms.algo_euler import fleury_algorithm, hierholzer_algorithm
 
 
 class AlgorithmRunner:
@@ -482,3 +483,85 @@ class AlgorithmRunner:
 						node.color = "#2ECC71"
 		
 		self.app.draw_graph()
+
+	def animate_euler(self, path_ids, algo_name, delay_ms=800):
+		self.reset_visuals()
+		self.app.draw_graph()
+		
+		node_map = {n.id: n for n in self.app.nodes}
+		# Create a map for edges to easily find them: (u, v) -> edge
+		edge_map = {}
+		for e in self.app.edges:
+			u, v = e.start_node.id, e.end_node.id
+			edge_map[(u, v)] = e
+			edge_map[(v, u)] = e 
+
+		i = 0
+		
+		def step():
+			nonlocal i
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
+			
+			# Highlight start node
+			if i == 0 and len(path_ids) > 0:
+				if path_ids[0] in node_map:
+					node_map[path_ids[0]].color = "yellow"
+
+			# If we have visited at least one node, we can highlight the edge from prev to curr
+			if i > 0 and i < len(path_ids):
+				u_id = path_ids[i-1]
+				v_id = path_ids[i]
+				
+				# Highlight node v
+				if v_id in node_map:
+					node_map[v_id].color = "yellow"
+				
+				# Highlight edge (u, v)
+				if (u_id, v_id) in edge_map:
+					edge_map[(u_id, v_id)].color = "red"
+					edge_map[(u_id, v_id)].thickness = 3
+			
+			self.app.draw_graph()
+			
+			i += 1
+			if i >= len(path_ids):
+				self.app._anim_after_id = None
+				self.app.log(f"{algo_name}: Hoàn thành.", level='THÀNH CÔNG')
+				return
+
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
+			self.app._anim_after_id = self.app.after(delay_ms, step)
+			
+		step()
+
+	def run_fleury(self):
+		self.cancel_animation()
+		if not self.app.nodes:
+			self.app.log("Fleury: Không có đỉnh.", level='CẢNH BÁO')
+			return
+		
+		path = fleury_algorithm(self.app.nodes, self.app.edges)
+		if not path:
+			self.app.log("Fleury: Không tìm thấy đường đi/chu trình Euler.", level='CẢNH BÁO')
+			return
+			
+		self.app.log(f"Fleury: Tìm thấy đường đi với {len(path)} đỉnh. Đang mô phỏng...", level='THÔNG BÁO')
+		self.animate_euler(path, "Fleury")
+
+	def run_hierholzer(self):
+		self.cancel_animation()
+		if not self.app.nodes:
+			self.app.log("Hierholzer: Không có đỉnh.", level='CẢNH BÁO')
+			return
+
+		path = hierholzer_algorithm(self.app.nodes, self.app.edges)
+		if not path:
+			self.app.log("Hierholzer: Không tìm thấy chu trình Euler.", level='CẢNH BÁO')
+			return
+			
+		self.app.log(f"Hierholzer: Tìm thấy chu trình với {len(path)} đỉnh. Đang mô phỏng...", level='THÔNG BÁO')
+		self.animate_euler(path, "Hierholzer")

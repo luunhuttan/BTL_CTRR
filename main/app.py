@@ -143,62 +143,42 @@ class GraphApp(ctk.CTk):
         col, icon = cmap.get(level, ('#7f8c8d', 'ℹ️'))
 
         # Card frame
-        card = ctk.CTkFrame(self.log_container, fg_color="#2b2b2b", corner_radius=8, border_width=1)
-        card.grid_columnconfigure(2, weight=1)
-        # place card in column 0 so it expands to full container width
-        card.grid(sticky="ew", padx=6, pady=6, column=0)
-
-        # Left colored bar (use Tk frame for solid color)
-        try:
-            left_bar = tk.Frame(card, width=6, bg=col)
-            left_bar.grid(row=0, column=0, rowspan=2, sticky="nsw", padx=(0,6))
-        except Exception:
-            pass
+        card = ctk.CTkFrame(self.log_container, fg_color="#2b2b2b", corner_radius=6)
+        card.grid_columnconfigure(1, weight=1)
+        card.grid(sticky="ew", padx=5, pady=3, column=0)
 
         # Icon
-        lbl_icon = ctk.CTkLabel(card, text=icon, width=28, height=28, text_color=col, anchor="center", font=ctk.CTkFont(size=14))
-        lbl_icon.grid(row=0, column=1, sticky="nw", padx=(0,6), pady=6)
+        lbl_icon = ctk.CTkLabel(card, text=icon, width=30, text_color=col, font=ctk.CTkFont(size=16))
+        lbl_icon.grid(row=0, column=0, sticky="nw", padx=(5,0), pady=5)
 
-        # Message label (strip trailing newline)
+        # Message label
         txt = str(message).rstrip('\n')
-        lbl_msg = ctk.CTkLabel(card, text=txt, anchor="w", justify="left", wraplength=1, text_color="#e0e0e0")
-        lbl_msg.grid(row=0, column=2, sticky="nsew", padx=(0,6), pady=6)
+        lbl_msg = ctk.CTkLabel(card, text=txt, anchor="w", justify="left", text_color="#e0e0e0", font=ctk.CTkFont(size=12))
+        lbl_msg.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        
+        # Tag the label for easier identification in _update_log_wraps
+        lbl_msg.is_log_message = True
 
-        # Adjust wraplength after layout so long messages wrap to available width
-        def _apply_wrap():
+        # Bind configure event to update wraps
+        if not hasattr(self, '_log_wrap_bound') or not self._log_wrap_bound:
+            self._log_wrap_bound = True
             try:
-                # ensure geometry is calculated
-                self.log_container.update_idletasks()
-                w = self.log_container.winfo_width() or getattr(self.log_container, '_canvas', None) and self.log_container._canvas.winfo_width() or 300
-                # subtract margins/columns (left icon + paddings)
-                wrap = max(int(w - 120), 80)
-                lbl_msg.configure(wraplength=wrap)
+                self.log_container.bind('<Configure>', lambda e: self._update_log_wraps())
             except Exception:
                 pass
 
-        # schedule immediate adjust and ensure future resizes update wraps
-        try:
-            _apply_wrap()
-            if not hasattr(self, '_log_wrap_bound') or not self._log_wrap_bound:
-                self._log_wrap_bound = True
-                try:
-                    self.log_container.bind('<Configure>', lambda e: self._update_log_wraps())
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        # Initial wrap update
+        self.after(10, self._update_log_wraps)
 
-        # Small level caption (optional)
-        try:
-            lbl_level = ctk.CTkLabel(card, text=f"{level}", anchor="e", text_color="gray60", font=ctk.CTkFont(size=10))
-            lbl_level.grid(row=1, column=2, sticky="se", padx=(0,6), pady=(0,6))
-        except Exception:
-            pass
+        # Auto-scroll to bottom
+        self.after(50, self._scroll_log_to_bottom)
 
-        # Try to scroll to bottom of the scrollable frame
+    def _scroll_log_to_bottom(self):
         try:
-            if hasattr(self.ui.log_container, 'yview_moveto'):
-                self.ui.log_container.yview_moveto(1.0)
+            self.log_container.update_idletasks()
+            # For CTkScrollableFrame, we need to scroll the parent canvas
+            if hasattr(self.log_container, '_parent_canvas'):
+                self.log_container._parent_canvas.yview_moveto(1.0)
             elif hasattr(self.log_container, '_canvas'):
                 self.log_container._canvas.yview_moveto(1.0)
         except Exception:
@@ -208,18 +188,22 @@ class GraphApp(ctk.CTk):
         """Recompute wraplength for all message labels inside log cards when container resizes."""
         try:
             self.log_container.update_idletasks()
-            w = self.log_container.winfo_width() or getattr(self.log_container, '_canvas', None) and self.log_container._canvas.winfo_width() or 300
-            wrap = max(int(w - 120), 80)
+            # Calculate available width
+            w = 0
+            if hasattr(self.log_container, '_parent_canvas'):
+                 w = self.log_container._parent_canvas.winfo_width()
+            elif hasattr(self.log_container, '_canvas'):
+                 w = self.log_container._canvas.winfo_width()
+            else:
+                 w = self.log_container.winfo_width()
+            
+            # Subtract padding and icon width (approx 60px)
+            wrap = max(int(w - 60), 100)
+            
             for card in self.log_container.winfo_children():
                 for child in card.winfo_children():
-                    try:
-                        # update CTkLabel instances (message labels)
-                        if isinstance(child, ctk.CTkLabel):
-                            # heuristic: update labels that likely are messages (justify left)
-                            if getattr(child, 'configure', None):
-                                child.configure(wraplength=wrap)
-                    except Exception:
-                        continue
+                    if isinstance(child, ctk.CTkLabel) and getattr(child, 'is_log_message', False):
+                        child.configure(wraplength=wrap)
         except Exception:
             pass
 
@@ -397,16 +381,49 @@ class GraphApp(ctk.CTk):
         self.algo_runner.run_ford_fulkerson()
 
     def run_fleury(self):
-        self.log("Fleury: Tính năng sắp ra mắt (Thành viên 3/6)...", level='THÔNG BÁO')
-        # TODO: Connected to Member 3/6's code
+        self.algo_runner.run_fleury()
 
     def run_hierholzer(self):
-        self.log("Hierholzer: Tính năng sắp ra mắt (Thành viên 3/6)...", level='THÔNG BÁO')
-        # TODO: Connected to Member 3/6's code
+        self.algo_runner.run_hierholzer()
 
     def show_representations(self):
-        self.log("Hiện Ma trận/DS kề: Tính năng sắp ra mắt (Thành viên 4)...", level='THÔNG BÁO')
-        # TODO: Connected to Member 4's code
+        if not self.nodes:
+            self.log("Không có dữ liệu đồ thị để hiển thị.", level='CẢNH BÁO')
+            return
+
+        # Create a new window
+        top = ctk.CTkToplevel(self)
+        top.title("Biểu diễn Đồ thị")
+        top.geometry("600x400")
+        
+        # Create tabs for Matrix and List
+        tabview = ctk.CTkTabview(top)
+        tabview.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        tab_matrix = tabview.add("Ma trận kề")
+        tab_list = tabview.add("Danh sách kề")
+        tab_edges = tabview.add("Danh sách cạnh")
+        
+        # Matrix Content
+        matrix_str = convert_to_adjacency_matrix(self.nodes, self.edges, self.is_directed)
+        txt_matrix = ctk.CTkTextbox(tab_matrix, font=ctk.CTkFont(family="Consolas", size=12))
+        txt_matrix.pack(fill="both", expand=True)
+        txt_matrix.insert("1.0", matrix_str)
+        txt_matrix.configure(state="disabled")
+        
+        # List Content
+        list_str = convert_to_adjacency_list(self.nodes, self.edges, self.is_directed)
+        txt_list = ctk.CTkTextbox(tab_list, font=ctk.CTkFont(family="Consolas", size=12))
+        txt_list.pack(fill="both", expand=True)
+        txt_list.insert("1.0", list_str)
+        txt_list.configure(state="disabled")
+
+        # Edge List Content
+        edge_str = convert_to_edge_list(self.nodes, self.edges, self.is_directed)
+        txt_edges = ctk.CTkTextbox(tab_edges, font=ctk.CTkFont(family="Consolas", size=12))
+        txt_edges.pack(fill="both", expand=True)
+        txt_edges.insert("1.0", edge_str)
+        txt_edges.configure(state="disabled")
 
     def generate_random(self):
         num_nodes = simpledialog.askinteger("Tạo ngẫu nhiên", "Nhập số lượng đỉnh (5-20):", minvalue=5, maxvalue=20)

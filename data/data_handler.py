@@ -99,13 +99,14 @@ def load_graph_from_json(filename):
     except Exception:
         return (None, None)
 
-def convert_to_adjacency_matrix(nodes, edges):
+def convert_to_adjacency_matrix(nodes, edges, is_directed=True):
     """
     Chuyển đổi đồ thị hiện tại thành chuỗi Ma trận kề để hiển thị.
     
     Tham số:
         nodes (list): Danh sách các đối tượng Node.
         edges (list): Danh sách các đối tượng Edge.
+        is_directed (bool): True nếu là đồ thị có hướng, False nếu vô hướng.
         
     Trả về:
         str: Chuỗi ma trận kề đã được định dạng.
@@ -127,6 +128,8 @@ def convert_to_adjacency_matrix(nodes, edges):
             continue
         if u in id_to_idx and v in id_to_idx:
             mat[id_to_idx[u]][id_to_idx[v]] = w
+            if not is_directed:
+                mat[id_to_idx[v]][id_to_idx[u]] = w
 
     # Format as string
     header = "    " + " ".join([str(x) for x in ids])
@@ -135,13 +138,14 @@ def convert_to_adjacency_matrix(nodes, edges):
         lines.append(f"{ids[i]:>3} " + " ".join(str(x) for x in row))
     return "\n".join(lines)
 
-def convert_to_adjacency_list(nodes, edges):
+def convert_to_adjacency_list(nodes, edges, is_directed=True):
     """
     Chuyển đổi đồ thị hiện tại thành chuỗi Danh sách kề để hiển thị.
     
     Tham số:
         nodes (list): Danh sách các đối tượng Node.
         edges (list): Danh sách các đối tượng Edge.
+        is_directed (bool): True nếu là đồ thị có hướng, False nếu vô hướng.
         
     Trả về:
         str: Chuỗi danh sách kề đã được định dạng.
@@ -156,6 +160,8 @@ def convert_to_adjacency_list(nodes, edges):
             continue
         if u in adj:
             adj[u].append((v, w))
+        if not is_directed and v in adj:
+            adj[v].append((u, w))
 
     lines = []
     for u in sorted(adj.keys()):
@@ -163,26 +169,32 @@ def convert_to_adjacency_list(nodes, edges):
         lines.append(f"{u}: {neigh}")
     return "\n".join(lines)
 
-def convert_to_edge_list(nodes, edges):
+def convert_to_edge_list(nodes, edges, is_directed=True):
     """
     Chuyển đổi đồ thị hiện tại thành chuỗi Danh sách cạnh để hiển thị.
     
     Tham số:
         nodes (list): Danh sách các đối tượng Node.
         edges (list): Danh sách các đối tượng Edge.
+        is_directed (bool): True nếu là đồ thị có hướng.
         
     Trả về:
         str: Chuỗi danh sách cạnh đã được định dạng.
     """
     lines = []
-    for e in edges:
+    # Sort edges by start node then end node for cleaner output
+    sorted_edges = sorted(edges, key=lambda e: (int(e.start_node.id), int(e.end_node.id)))
+    
+    arrow = "->" if is_directed else "-"
+    
+    for e in sorted_edges:
         try:
             u = int(e.start_node.id)
             v = int(e.end_node.id)
             w = int(getattr(e, 'weight', 1))
         except Exception:
             continue
-        lines.append(f"{u} -> {v} (w={w})")
+        lines.append(f"{u} {arrow} {v} : {w}")
     return "\n".join(lines)
 
 def format_log(message, level=None):

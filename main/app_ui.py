@@ -84,8 +84,26 @@ class GraphGUI:
 
     def setup_right_panel(self):
         """Creates the right panel for logs."""
+        # Grip column (narrow) - placed before the right panel
+        self.grip = ctk.CTkFrame(self.app, width=12, fg_color="transparent")
+        self.grip.grid(row=0, column=2, sticky="ns")
+        # Bind drag events to app handlers
+        self.grip.bind("<Button-1>", lambda e: self.app.start_grip_drag(e))
+        self.grip.bind("<B1-Motion>", lambda e: self.app.grip_drag(e))
+        self.grip.bind("<ButtonRelease-1>", lambda e: self.app.end_grip_drag(e))
+
+        # Collapse/expand button placed inside the grip
+        try:
+            self.btn_toggle_log = ctk.CTkButton(self.grip, text='◀', width=28, height=28, fg_color='transparent', hover_color='transparent', command=self.app.toggle_log)
+            # place near top center
+            self.btn_toggle_log.place(relx=0.5, rely=0.02, anchor='n')
+            # expose to app for toggling text
+            self.app.ui_btn_toggle_log = self.btn_toggle_log
+        except Exception:
+            pass
+
         self.right_panel = ctk.CTkFrame(self.app, width=300, corner_radius=0, fg_color="#212121")
-        self.right_panel.grid(row=0, column=2, sticky="nsew")
+        self.right_panel.grid(row=0, column=3, sticky="nsew")
         self.right_panel.grid_rowconfigure(1, weight=1)
         self.right_panel.grid_columnconfigure(0, weight=1)
 
@@ -109,15 +127,24 @@ class GraphGUI:
                                            command=self.app.clear_log)
         self.btn_clear_log.grid(row=0, column=1, sticky="e")
 
-        # Log Console
-        self.log_box = ctk.CTkTextbox(self.right_panel, font=ctk.CTkFont(family="Consolas", size=12), 
-                                      fg_color="#111111", text_color="#e0e0e0", 
-                                      activate_scrollbars=True)
-        self.log_box.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
-        self.log_box.configure(state="disabled")
-        
-        # Expose log_box to app
-        self.app.log_box = self.log_box
+        # Log Console: use a scrollable frame to host individual "card" widgets
+        try:
+            self.log_container = ctk.CTkScrollableFrame(self.right_panel, fg_color="transparent")
+            self.log_container.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
+            self.log_container.grid_columnconfigure(0, weight=1)
+            # Expose log container to app for adding/removing cards
+            self.app.log_container = self.log_container
+        except Exception:
+            # Fallback to textbox if CTkScrollableFrame is not available
+            self.log_box = ctk.CTkTextbox(self.right_panel, font=ctk.CTkFont(family="Consolas", size=12), 
+                                          fg_color="#111111", text_color="#e0e0e0", 
+                                          activate_scrollbars=True)
+            self.log_box.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
+            self.log_box.configure(state="disabled")
+            self.app.log_box = self.log_box
+        # Expose grip and toggle to app UI for control
+        self.app.grip = self.grip
+        self.app.btn_toggle_log = getattr(self, 'btn_toggle_log', None)
 
     def setup_canvas(self):
         """Creates the drawing surface."""

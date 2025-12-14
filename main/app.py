@@ -20,6 +20,8 @@ from main.app_ui import GraphGUI
 from custom.algorithm_runner import AlgorithmRunner
 from algorithms.algo_traversal import bfs, dfs, check_bipartite
 from data.generator import RandomGraphGenerator
+from data.data_handler import format_log, save_graph_to_json, load_graph_from_json, convert_to_adjacency_list, convert_to_adjacency_matrix, convert_to_edge_list
+from tkinter import filedialog
 
 # --- Configuration ---
 ctk.set_appearance_mode("Dark")
@@ -52,28 +54,152 @@ class GraphApp(ctk.CTk):
         self.ui = GraphGUI(self)
         self.algo_runner = AlgorithmRunner(self)
         
-        self.log("Ứng dụng đã khởi động. Sẵn sàng.")
+        self.log("Ứng dụng đã khởi động. Sẵn sàng.", level='THÔNG BÁO')
 
     # --- Core Logic: Logging & Drawing ---
 
-    def log(self, message):
+    def log(self, message, level=None):
         """Appends a message to the log console."""
-        if not hasattr(self, 'log_box'): return
-        
-        # Format message cleanly without timestamp to match the requested style
-        full_msg = f"{message}\n"
-        
-        self.log_box.configure(state="normal")
-        self.log_box.insert("end", full_msg)
-        self.log_box.see("end") # Auto-scroll to bottom
-        self.log_box.configure(state="disabled")
+        # Use centralized formatter to produce concise, professional Vietnamese logs
+        full_msg = format_log(message, level)
+
+        # Prefer card-based container if available
+        if hasattr(self, 'log_container'):
+            try:
+                # Parse label and message text from formatted string: "[LABEL] text"
+                first = full_msg.splitlines()[0]
+                if first.startswith('[') and ']' in first:
+                    parsed_label = first.split(']')[0].lstrip('[').strip()
+                    parsed_text = first.split('] ', 1)[1] if '] ' in first else first.split(']', 1)[1].strip()
+                else:
+                    parsed_label = (level or 'THÔNG BÁO').upper()
+                    parsed_text = first
+                self.add_log_card(parsed_text, parsed_label)
+            except Exception:
+                # If anything fails, fallback to textbox if present
+                if hasattr(self, 'log_box'):
+                    self.log_box.configure(state="normal")
+                    self.log_box.insert("end", full_msg)
+                    self.log_box.see("end")
+                    self.log_box.configure(state="disabled")
+        else:
+            if not hasattr(self, 'log_box'): return
+            self.log_box.configure(state="normal")
+            self.log_box.insert("end", full_msg)
+            self.log_box.see("end") # Auto-scroll to bottom
+            self.log_box.configure(state="disabled")
 
     def clear_log(self):
         """Clears the log console."""
+        # Clear card-based container if present
+        if hasattr(self, 'log_container'):
+            try:
+                for w in list(self.log_container.winfo_children()):
+                    w.destroy()
+                return
+            except Exception:
+                pass
+
         if not hasattr(self, 'log_box'): return
         self.log_box.configure(state="normal")
         self.log_box.delete("1.0", "end")
         self.log_box.configure(state="disabled")
+
+    def add_log_card(self, message, level=None):
+        """Create a small rounded card in the log container showing the message and icon/color by level."""
+        if not hasattr(self, 'log_container'):
+            return
+
+        # Color & icon mapping
+        cmap = {
+            'THÔNG BÁO': ('#3498db', 'ℹ️'),
+            'THÀNH CÔNG': ('#2ecc71', '✅'),
+            'CẢNH BÁO': ('#f1c40f', '⚠️'),
+            'LỖI': ('#e74c3c', '❌'),
+            'THUẬT TOÁN': ('#8e44ad', '⚙️')
+        }
+        col, icon = cmap.get(level, ('#7f8c8d', 'ℹ️'))
+
+        # Card frame
+        card = ctk.CTkFrame(self.log_container, fg_color="#2b2b2b", corner_radius=8, border_width=1)
+        card.grid_columnconfigure(2, weight=1)
+        # place card in column 0 so it expands to full container width
+        card.grid(sticky="ew", padx=6, pady=6, column=0)
+
+        # Left colored bar (use Tk frame for solid color)
+        try:
+            left_bar = tk.Frame(card, width=6, bg=col)
+            left_bar.grid(row=0, column=0, rowspan=2, sticky="nsw", padx=(0,6))
+        except Exception:
+            pass
+
+        # Icon
+        lbl_icon = ctk.CTkLabel(card, text=icon, width=28, height=28, text_color=col, anchor="center", font=ctk.CTkFont(size=14))
+        lbl_icon.grid(row=0, column=1, sticky="nw", padx=(0,6), pady=6)
+
+        # Message label (strip trailing newline)
+        txt = str(message).rstrip('\n')
+        lbl_msg = ctk.CTkLabel(card, text=txt, anchor="w", justify="left", wraplength=1, text_color="#e0e0e0")
+        lbl_msg.grid(row=0, column=2, sticky="nsew", padx=(0,6), pady=6)
+
+        # Adjust wraplength after layout so long messages wrap to available width
+        def _apply_wrap():
+            try:
+                # ensure geometry is calculated
+                self.log_container.update_idletasks()
+                w = self.log_container.winfo_width() or getattr(self.log_container, '_canvas', None) and self.log_container._canvas.winfo_width() or 300
+                # subtract margins/columns (left icon + paddings)
+                wrap = max(int(w - 120), 80)
+                lbl_msg.configure(wraplength=wrap)
+            except Exception:
+                pass
+
+        # schedule immediate adjust and ensure future resizes update wraps
+        try:
+            _apply_wrap()
+            if not hasattr(self, '_log_wrap_bound') or not self._log_wrap_bound:
+                self._log_wrap_bound = True
+                try:
+                    self.log_container.bind('<Configure>', lambda e: self._update_log_wraps())
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Small level caption (optional)
+        try:
+            lbl_level = ctk.CTkLabel(card, text=f"{level}", anchor="e", text_color="gray60", font=ctk.CTkFont(size=10))
+            lbl_level.grid(row=1, column=2, sticky="se", padx=(0,6), pady=(0,6))
+        except Exception:
+            pass
+
+        # Try to scroll to bottom of the scrollable frame
+        try:
+            if hasattr(self.ui.log_container, 'yview_moveto'):
+                self.ui.log_container.yview_moveto(1.0)
+            elif hasattr(self.log_container, '_canvas'):
+                self.log_container._canvas.yview_moveto(1.0)
+        except Exception:
+            pass
+
+    def _update_log_wraps(self):
+        """Recompute wraplength for all message labels inside log cards when container resizes."""
+        try:
+            self.log_container.update_idletasks()
+            w = self.log_container.winfo_width() or getattr(self.log_container, '_canvas', None) and self.log_container._canvas.winfo_width() or 300
+            wrap = max(int(w - 120), 80)
+            for card in self.log_container.winfo_children():
+                for child in card.winfo_children():
+                    try:
+                        # update CTkLabel instances (message labels)
+                        if isinstance(child, ctk.CTkLabel):
+                            # heuristic: update labels that likely are messages (justify left)
+                            if getattr(child, 'configure', None):
+                                child.configure(wraplength=wrap)
+                    except Exception:
+                        continue
+        except Exception:
+            pass
 
     def draw_graph(self):
         """Clears and redraws the entire graph."""
@@ -105,12 +231,12 @@ class GraphApp(ctk.CTk):
             if self.selected_node is None:
                 # First click -> Select
                 self.selected_node = clicked_node
-                self.log(f"Đã chọn Đỉnh {clicked_node.id}. Nhấn vào đỉnh khác để nối.")
+                self.log(f"Đã chọn Đỉnh {clicked_node.id}. Nhấn vào đỉnh khác để nối.", level='THÔNG BÁO')
             else:
                 if self.selected_node == clicked_node:
                     # Clicked same node -> Deselect
                     self.selected_node = None
-                    self.log("Đã bỏ chọn đỉnh.")
+                    self.log("Đã bỏ chọn đỉnh.", level='THÔNG BÁO')
                 else:
                     # Clicked different node -> Create Edge
                     self.add_edge(self.selected_node, clicked_node)
@@ -141,7 +267,7 @@ class GraphApp(ctk.CTk):
             new_weight = simpledialog.askinteger("Sửa Trọng số", "Nhập trọng số mới:", initialvalue=clicked_edge.weight)
             if new_weight is not None:
                 clicked_edge.weight = new_weight
-                self.log(f"Đã cập nhật trọng số cạnh thành {new_weight}")
+                self.log(f"Đã cập nhật trọng số cạnh thành {new_weight}", level='THÀNH CÔNG')
                 self.draw_graph()
             return
 
@@ -150,7 +276,7 @@ class GraphApp(ctk.CTk):
             new_label = simpledialog.askstring("Đổi tên Đỉnh", f"Nhập tên mới cho Đỉnh {self.clicked_node.id}:", initialvalue=self.clicked_node.label)
             if new_label:
                 self.clicked_node.label = new_label
-                self.log(f"Đã đổi tên Đỉnh {self.clicked_node.id} thành '{new_label}'")
+                self.log(f"Đã đổi tên Đỉnh {self.clicked_node.id} thành '{new_label}'", level='THÀNH CÔNG')
                 self.draw_graph()
             self.clicked_node = None
 
@@ -168,7 +294,7 @@ class GraphApp(ctk.CTk):
         if self.selected_node == node:
             self.selected_node = None
         
-        self.log(f"Đã xóa Đỉnh {node.id}")
+        self.log(f"Đã xóa Đỉnh {node.id}", level='THÔNG BÁO')
         self.draw_graph()
 
     # --- Helper Methods ---
@@ -196,18 +322,18 @@ class GraphApp(ctk.CTk):
         new_node = Node(self.node_counter, x, y)
         self.nodes.append(new_node)
         self.node_counter += 1
-        self.log(f"Đỉnh {new_node.id} được tạo tại ({x}, {y})")
+        self.log(f"Đỉnh {new_node.id} được tạo tại ({x}, {y})", level='THÀNH CÔNG')
 
     def add_edge(self, start, end):
         # Check for duplicates
         for edge in self.edges:
             if (edge.start_node == start and edge.end_node == end):
-                self.log("Cạnh đã tồn tại!")
+                self.log("Cạnh đã tồn tại!", level='CẢNH BÁO')
                 return
 
         new_edge = Edge(start, end)
         self.edges.append(new_edge)
-        self.log(f"Đã nối Đỉnh {start.label} với Đỉnh {end.label}")
+        self.log(f"Đã nối Đỉnh {start.label} với Đỉnh {end.label}", level='THÀNH CÔNG')
 
     def clear_canvas(self):
         if hasattr(self, 'algo_runner'):
@@ -217,12 +343,12 @@ class GraphApp(ctk.CTk):
         self.node_counter = 1
         self.selected_node = None
         self.draw_graph()
-        self.log("Đã xóa bảng vẽ.")
+        self.log("Đã xóa bảng vẽ.", level='THÔNG BÁO')
 
     def toggle_directed(self):
         self.is_directed = not self.is_directed
         mode = "Có hướng" if self.is_directed else "Vô hướng"
-        self.log(f"Đã chuyển sang chế độ đồ thị: {mode}")
+        self.log(f"Đã chuyển sang chế độ đồ thị: {mode}", level='THÔNG BÁO')
         self.draw_graph()
 
     # --- Placeholder Methods (For Team Members) ---
@@ -249,15 +375,15 @@ class GraphApp(ctk.CTk):
         self.algo_runner.run_ford_fulkerson()
 
     def run_fleury(self):
-        self.log("Fleury: Tính năng sắp ra mắt (Thành viên 3/6)...")
+        self.log("Fleury: Tính năng sắp ra mắt (Thành viên 3/6)...", level='THÔNG BÁO')
         # TODO: Connected to Member 3/6's code
 
     def run_hierholzer(self):
-        self.log("Hierholzer: Tính năng sắp ra mắt (Thành viên 3/6)...")
+        self.log("Hierholzer: Tính năng sắp ra mắt (Thành viên 3/6)...", level='THÔNG BÁO')
         # TODO: Connected to Member 3/6's code
 
     def show_representations(self):
-        self.log("Hiện Ma trận/DS kề: Tính năng sắp ra mắt (Thành viên 4)...")
+        self.log("Hiện Ma trận/DS kề: Tính năng sắp ra mắt (Thành viên 4)...", level='THÔNG BÁO')
         # TODO: Connected to Member 4's code
 
     def generate_random(self):
@@ -288,15 +414,139 @@ class GraphApp(ctk.CTk):
                 self.edges.append(Edge(node_map[u_id], node_map[v_id], w))
 
         self.draw_graph()
-        self.log(f"Đã tạo đồ thị ngẫu nhiên với {len(self.nodes)} đỉnh và {len(self.edges)} cạnh.")
+        self.log(f"Đã tạo đồ thị ngẫu nhiên với {len(self.nodes)} đỉnh và {len(self.edges)} cạnh.", level='THÀNH CÔNG')
 
     def save_graph(self):
-        self.log("Lưu file: Tính năng sắp ra mắt (Thành viên 5)...")
-        # TODO: Connected to Member 5's code
+        # Save current graph to a JSON file (asks user for path)
+        if not self.nodes:
+            self.log("Không có đồ thị để lưu.", level='CẢNH BÁO')
+            return
+
+        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")], initialfile="graph.json")
+        if not path:
+            return
+
+        ok = save_graph_to_json(path, self.nodes, self.edges)
+        if ok:
+            self.log(f"Đã lưu file: {os.path.basename(path)}", level='THÀNH CÔNG')
+        else:
+            self.log(f"Không lưu được file: {os.path.basename(path)}", level='LỖI')
 
     def load_graph(self):
-        self.log("Đọc file: Tính năng sắp ra mắt (Thành viên 5)...")
-        # TODO: Connected to Member 5's code
+        # Load graph from a JSON file (asks user for path)
+        path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+        if not path:
+            return
+
+        nodes_data, edges_data = load_graph_from_json(path)
+        if nodes_data is None:
+            self.log(f"Không đọc được file: {os.path.basename(path)}", level='LỖI')
+        # Log panel state and default size
+        self.log_collapsed = False
+        self._right_panel_width = 300
+        self.grid_columnconfigure(3, minsize=self._right_panel_width)
+        self._grip_dragging = False
+        self._grip_start_x = None
+        self._grip_start_width = None
+
+
+        # Clear existing
+        if hasattr(self, 'algo_runner'):
+            self.algo_runner.cancel_animation()
+        self.nodes = []
+        self.edges = []
+
+        # Recreate nodes
+        for nd in nodes_data:
+            try:
+                nid = int(nd.get('id'))
+                x = float(nd.get('x', 100))
+                y = float(nd.get('y', 100))
+                label = nd.get('label', str(nid))
+                self.nodes.append(Node(nid, x, y, label))
+            except Exception:
+                continue
+
+
+    # --- Log panel control (collapse / resize) ---
+    def toggle_log(self):
+        """Collapse or expand the right log panel."""
+        if not hasattr(self, 'ui'):
+            return
+
+        if self.log_collapsed:
+            # expand
+            self.ui.right_panel.grid()
+            self.ui.grip.grid()
+            self.grid_columnconfigure(3, minsize=self._right_panel_width)
+            try:
+                self.ui.btn_toggle_log.configure(text='◀')
+            except Exception:
+                pass
+            self.log_collapsed = False
+        else:
+            # collapse
+            # remember current width
+            try:
+                info = self.ui.right_panel.winfo_width()
+                if info > 50:
+                    self._right_panel_width = info
+            except Exception:
+                pass
+            self.ui.right_panel.grid_remove()
+            self.ui.grip.grid_remove()
+            self.grid_columnconfigure(3, minsize=0)
+            try:
+                self.ui.btn_toggle_log.configure(text='▶')
+            except Exception:
+                pass
+            self.log_collapsed = True
+
+    def start_grip_drag(self, event):
+        self._grip_dragging = True
+        # record absolute x
+        self._grip_start_x = event.x_root
+        self._grip_start_width = self.ui.right_panel.winfo_width()
+
+    def grip_drag(self, event):
+        if not self._grip_dragging:
+            return
+        try:
+            dx = event.x_root - self._grip_start_x
+            # moving mouse left (negative dx) increases width; adjust sign
+            new_w = max(120, int(self._grip_start_width - dx))
+            self._right_panel_width = new_w
+            self.grid_columnconfigure(3, minsize=new_w)
+            try:
+                self.ui.right_panel.configure(width=new_w)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def end_grip_drag(self, event):
+        self._grip_dragging = False
+        self._grip_start_x = None
+        self._grip_start_width = None
+        node_map = {int(n.id): n for n in self.nodes}
+
+        # Recreate edges
+        for ed in edges_data:
+            try:
+                u = int(ed.get('start'))
+                v = int(ed.get('end'))
+                w = int(ed.get('weight', 1))
+                if u in node_map and v in node_map:
+                    self.edges.append(Edge(node_map[u], node_map[v], w))
+            except Exception:
+                continue
+
+        # Update counter
+        max_id = max([int(n.id) for n in self.nodes], default=0)
+        self.node_counter = max_id + 1
+
+        self.draw_graph()
+        self.log(f"Đã đọc file: {os.path.basename(path)} ({len(self.nodes)} đỉnh, {len(self.edges)} cạnh)", level='THÀNH CÔNG')
 
 if __name__ == "__main__":
     app = GraphApp()

@@ -1,5 +1,38 @@
 import tkinter as tk
 import math
+import heapq
+from collections import deque
+
+# --- Global Helpers for Algorithms ---
+g_heapq = heapq
+g_deque = deque
+
+def g_node_ids(nodes):
+    return [n.id for n in nodes]
+
+def g_build_directed_adj(edges):
+    adj = {}
+    for edge in edges:
+        u = edge.start_node.id
+        v = edge.end_node.id
+        w = edge.weight
+        if u not in adj: adj[u] = []
+        adj[u].append((v, w, edge))
+    return adj
+
+def g_build_undirected_adj(edges):
+    adj = {}
+    for edge in edges:
+        u = edge.start_node.id
+        v = edge.end_node.id
+        w = edge.weight
+        
+        if u not in adj: adj[u] = []
+        adj[u].append((v, w, edge))
+        
+        if v not in adj: adj[v] = []
+        adj[v].append((u, w, edge))
+    return adj
 
 class Node:
     def __init__(self, id, x, y, label=None):
@@ -28,7 +61,7 @@ class Edge:
         self.weight = int(weight)
         self.color = "gray70"
 
-    def draw(self, canvas):
+    def draw(self, canvas, is_directed=True):
         # Tính toán điểm đầu và điểm cuối
         start_x, start_y = self.start_node.x, self.start_node.y
         end_x, end_y = self.end_node.x, self.end_node.y
@@ -46,9 +79,10 @@ class Edge:
             end_y = end_y - dy * ratio
         
         # Vẽ đường thẳng
-        # Sử dụng arrow=tk.LAST để chỉ hướng, đây là chuẩn cho trực quan hóa BFS/DFS
+        # Sử dụng arrow=tk.LAST để chỉ hướng nếu là đồ thị có hướng
+        arrow_opt = tk.LAST if is_directed else None
         canvas.create_line(start_x, start_y, end_x, end_y, 
-                           fill=self.color, width=2, smooth=True, arrow=tk.LAST)
+                           fill=self.color, width=2, smooth=True, arrow=arrow_opt)
         
         # Tính toán trung điểm cho văn bản trọng số
         mid_x = (start_x + end_x) / 2

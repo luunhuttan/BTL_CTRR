@@ -12,12 +12,13 @@ class GraphGUI:
         self.app = app
         self.setup_sidebar()
         self.setup_canvas()
+        self.setup_right_panel()
 
     def setup_sidebar(self):
         """Creates the left control panel."""
         self.sidebar = ctk.CTkFrame(self.app, width=250, corner_radius=0)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(20, weight=1) # Push log to bottom
+        # self.sidebar.grid_rowconfigure(20, weight=1) # No longer needed as log is moved
 
         # Header
         self.lbl_title = ctk.CTkLabel(self.sidebar, text="QUẢN LÝ ĐỒ THỊ", font=ctk.CTkFont(size=24, weight="bold"))
@@ -74,16 +75,45 @@ class GraphGUI:
         self.btn_matrix = ctk.CTkButton(self.sidebar, text="Hiện Ma trận/DS kề", command=self.app.show_representations)
         self.btn_matrix.grid(row=16, column=0, padx=20, pady=5)
 
+        self.btn_toggle = ctk.CTkButton(self.sidebar, text="Đổi: Có hướng/Vô hướng", fg_color="#5D6D7E", hover_color="#34495E", command=self.app.toggle_directed)
+        self.btn_toggle.grid(row=17, column=0, padx=20, pady=5)
+
         # Group 3: Utilities
         self.btn_clear = ctk.CTkButton(self.sidebar, text="Xóa bảng vẽ", fg_color="#C0392B", hover_color="#E74C3C", command=self.app.clear_canvas)
-        self.btn_clear.grid(row=17, column=0, padx=20, pady=(20, 10))
+        self.btn_clear.grid(row=18, column=0, padx=20, pady=(20, 10))
+
+    def setup_right_panel(self):
+        """Creates the right panel for logs."""
+        self.right_panel = ctk.CTkFrame(self.app, width=300, corner_radius=0, fg_color="#212121")
+        self.right_panel.grid(row=0, column=2, sticky="nsew")
+        self.right_panel.grid_rowconfigure(1, weight=1)
+        self.right_panel.grid_columnconfigure(0, weight=1)
+
+        # Header Frame
+        self.log_header = ctk.CTkFrame(self.right_panel, fg_color="transparent", height=30)
+        self.log_header.grid(row=0, column=0, padx=10, pady=(10, 5), sticky="ew")
+        self.log_header.grid_columnconfigure(0, weight=1)
+
+        # Log Title
+        self.lbl_log = ctk.CTkLabel(self.log_header, text="LOGS & SỰ KIỆN", 
+                                    font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"), 
+                                    text_color="gray80", anchor="w")
+        self.lbl_log.grid(row=0, column=0, sticky="w")
+
+        # Clear Button
+        self.btn_clear_log = ctk.CTkButton(self.log_header, text="Xóa", width=50, height=24, 
+                                           font=ctk.CTkFont(size=11),
+                                           fg_color="transparent", border_width=1, 
+                                           text_color="gray70", border_color="gray50",
+                                           hover_color="#333333",
+                                           command=self.app.clear_log)
+        self.btn_clear_log.grid(row=0, column=1, sticky="e")
 
         # Log Console
-        self.lbl_log = ctk.CTkLabel(self.sidebar, text="Nhật ký hoạt động", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_log.grid(row=18, column=0, padx=20, pady=(10, 0), sticky="ew")
-
-        self.log_box = ctk.CTkTextbox(self.sidebar, height=150)
-        self.log_box.grid(row=19, column=0, padx=20, pady=(5, 20), sticky="ew")
+        self.log_box = ctk.CTkTextbox(self.right_panel, font=ctk.CTkFont(family="Consolas", size=12), 
+                                      fg_color="#111111", text_color="#e0e0e0", 
+                                      activate_scrollbars=True)
+        self.log_box.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
         self.log_box.configure(state="disabled")
         
         # Expose log_box to app

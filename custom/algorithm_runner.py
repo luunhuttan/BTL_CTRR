@@ -21,6 +21,14 @@ class AlgorithmRunner:
 	def __init__(self, app):
 		self.app = app
 
+	def _can_schedule(self) -> bool:
+		if getattr(self.app, "_closing", False):
+			return False
+		try:
+			return bool(self.app.winfo_exists())
+		except Exception:
+			return False
+
 	# --------- shared helpers ---------
 
 	def cancel_animation(self):
@@ -71,6 +79,10 @@ class AlgorithmRunner:
 		def step():
 			nonlocal i, last_relax_edge
 
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
+
 			if i >= len(trace):
 				self.app._anim_after_id = None
 				if path:
@@ -109,6 +121,9 @@ class AlgorithmRunner:
 
 			self.app.draw_graph()
 			i += 1
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
 			self.app._anim_after_id = self.app.after(delay_ms, step)
 
 		step()
@@ -124,6 +139,10 @@ class AlgorithmRunner:
 
 		def step():
 			nonlocal i, last_edge
+
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
 
 			if i >= len(trace):
 				self.app._anim_after_id = None
@@ -155,6 +174,9 @@ class AlgorithmRunner:
 
 			self.app.draw_graph()
 			i += 1
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
 			self.app._anim_after_id = self.app.after(delay_ms, step)
 
 		step()
@@ -170,6 +192,10 @@ class AlgorithmRunner:
 
 		def step():
 			nonlocal i, last_edge
+
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
 
 			if i >= len(trace):
 				self.app._anim_after_id = None
@@ -201,6 +227,9 @@ class AlgorithmRunner:
 
 			self.app.draw_graph()
 			i += 1
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
 			self.app._anim_after_id = self.app.after(delay_ms, step)
 
 		step()
@@ -215,6 +244,10 @@ class AlgorithmRunner:
 
 		def step():
 			nonlocal i, last_path_edges
+
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
 
 			if i >= len(trace):
 				self.app._anim_after_id = None
@@ -246,6 +279,9 @@ class AlgorithmRunner:
 
 			self.app.draw_graph()
 			i += 1
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
 			self.app._anim_after_id = self.app.after(delay_ms, step)
 
 		step()
@@ -391,6 +427,9 @@ class AlgorithmRunner:
 		
 		def step():
 			nonlocal i
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
 			if i >= len(path_ids):
 				self.app._anim_after_id = None
 				self.app.log(f"{algo_name}: Hoàn thành.", level='THÀNH CÔNG')
@@ -406,6 +445,9 @@ class AlgorithmRunner:
 			
 			self.app.draw_graph()
 			i += 1
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
 			self.app._anim_after_id = self.app.after(delay_ms, step)
 			
 		step()

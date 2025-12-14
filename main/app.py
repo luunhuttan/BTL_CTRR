@@ -1,4 +1,5 @@
 import customtkinter as ctk
+import tkinter as tk
 from tkinter import simpledialog, Menu
 import math
 import datetime
@@ -44,6 +45,10 @@ class GraphApp(ctk.CTk):
         self.selected_node = None  # Tracks the first node clicked for edge creation
         self.is_directed = True # Default to directed graph
 
+        # Prevent after()-based animation loops from keeping the app alive
+        self._closing = False
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
         # 3. Layout Configuration
         self.grid_columnconfigure(0, weight=0) # Sidebar (fixed width)
         self.grid_columnconfigure(1, weight=1) # Canvas (expands)
@@ -55,6 +60,23 @@ class GraphApp(ctk.CTk):
         self.algo_runner = AlgorithmRunner(self)
         
         self.log("Ứng dụng đã khởi động. Sẵn sàng.", level='THÔNG BÁO')
+
+    def on_close(self):
+        """Safely stop animations and close the window."""
+        self._closing = True
+        try:
+            if hasattr(self, 'algo_runner') and self.algo_runner is not None:
+                self.algo_runner.cancel_animation()
+        except Exception:
+            pass
+        try:
+            self.quit()
+        except Exception:
+            pass
+        try:
+            self.destroy()
+        except Exception:
+            pass
 
     # --- Core Logic: Logging & Drawing ---
 
@@ -441,6 +463,7 @@ class GraphApp(ctk.CTk):
         nodes_data, edges_data = load_graph_from_json(path)
         if nodes_data is None:
             self.log(f"Không đọc được file: {os.path.basename(path)}", level='LỖI')
+            return
         # Log panel state and default size
         self.log_collapsed = False
         self._right_panel_width = 300
@@ -466,6 +489,28 @@ class GraphApp(ctk.CTk):
                 self.nodes.append(Node(nid, x, y, label))
             except Exception:
                 continue
+
+        # Recreate edges
+        node_map = {int(n.id): n for n in self.nodes}
+        for ed in edges_data or []:
+            try:
+                u = int(ed.get('start'))
+                v = int(ed.get('end'))
+                w = int(ed.get('weight', 1))
+                if u in node_map and v in node_map:
+                    self.edges.append(Edge(node_map[u], node_map[v], w))
+            except Exception:
+                continue
+
+        # Update counter
+        max_id = max([int(n.id) for n in self.nodes], default=0)
+        self.node_counter = max_id + 1
+
+        self.draw_graph()
+        self.log(
+            f"Đã đọc file: {os.path.basename(path)} ({len(self.nodes)} đỉnh, {len(self.edges)} cạnh)",
+            level='THÀNH CÔNG',
+        )
 
 
     # --- Log panel control (collapse / resize) ---
@@ -528,25 +573,6 @@ class GraphApp(ctk.CTk):
         self._grip_dragging = False
         self._grip_start_x = None
         self._grip_start_width = None
-        node_map = {int(n.id): n for n in self.nodes}
-
-        # Recreate edges
-        for ed in edges_data:
-            try:
-                u = int(ed.get('start'))
-                v = int(ed.get('end'))
-                w = int(ed.get('weight', 1))
-                if u in node_map and v in node_map:
-                    self.edges.append(Edge(node_map[u], node_map[v], w))
-            except Exception:
-                continue
-
-        # Update counter
-        max_id = max([int(n.id) for n in self.nodes], default=0)
-        self.node_counter = max_id + 1
-
-        self.draw_graph()
-        self.log(f"Đã đọc file: {os.path.basename(path)} ({len(self.nodes)} đỉnh, {len(self.edges)} cạnh)", level='THÀNH CÔNG')
 
 if __name__ == "__main__":
     app = GraphApp()

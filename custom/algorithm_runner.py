@@ -4,6 +4,7 @@ from tkinter import simpledialog
 
 from algorithms.algo_opt import (
 	bellman_ford,
+	bellman_ford_trace,
 	dijkstra,
 	dijkstra_trace,
 	ford_fulkerson,
@@ -110,18 +111,133 @@ class AlgorithmRunner:
 			return
 
 		directed = bool(getattr(self.app, 'is_directed', False))
-		path, cost, neg_cycle = bellman_ford(self.app.nodes, self.app.edges, start_id, end_id, directed=directed)
-		if neg_cycle:
+		path, cost, neg_cycle, trace = bellman_ford_trace(
+			self.app.nodes,
+			self.app.edges,
+			start_id,
+			end_id,
+			directed=directed,
+		)
+		if trace:
+			self.app.log(f"Bellman-Ford: Đang mô phỏng {len(trace)} bước...", level='THÔNG BÁO')
+			self.animate_bellman_ford(trace, path, cost, neg_cycle, start_id, end_id, delay_ms=450)
+			return
+
+		# Fallback (không có trace)
+		path2, cost2, neg_cycle2 = bellman_ford(self.app.nodes, self.app.edges, start_id, end_id, directed=directed)
+		if neg_cycle2:
 			self.reset_visuals()
 			self.app.draw_graph()
 			self.app.log("Bellman-Ford: Phát hiện chu trình âm (không xác định đường đi ngắn nhất).", level='LỖI')
 			return
-		if not path:
+		if not path2:
 			self.reset_visuals()
 			self.app.draw_graph()
 			self.app.log(f"Bellman-Ford: Không tìm thấy đường đi từ {start_id} tới {end_id}.", level='CẢNH BÁO')
 			return
-		self._highlight_final_path(path, cost, algo_name="Bellman-Ford")
+		self._highlight_final_path(path2, cost2, algo_name="Bellman-Ford")
+
+	def animate_bellman_ford(self, trace, path, cost, neg_cycle, start_id, end_id, delay_ms=450):
+		self.cancel_animation()
+		self.reset_visuals()
+		self.app.draw_graph()
+
+		node_by_id = {int(n.id): n for n in self.app.nodes}
+		is_directed = bool(getattr(self.app, 'is_directed', False))
+		last_edge = None
+		last_node = None
+		i = 0
+
+		def _find_edge(u, v):
+			if is_directed:
+				for e in self.app.edges:
+					if int(e.start_node.id) == int(u) and int(e.end_node.id) == int(v):
+						return e
+				return None
+			# undirected: match either direction
+			for e in self.app.edges:
+				a = int(e.start_node.id)
+				b = int(e.end_node.id)
+				if (a == int(u) and b == int(v)) or (a == int(v) and b == int(u)):
+					return e
+			return None
+
+		def step():
+			nonlocal i, last_edge, last_node
+
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
+
+			if i >= len(trace):
+				self.app._anim_after_id = None
+				if neg_cycle:
+					self.reset_visuals()
+					self.app.draw_graph()
+					self.app.log("Bellman-Ford: Phát hiện chu trình âm (không xác định đường đi ngắn nhất).", level='LỖI')
+					return
+				if not path:
+					self.reset_visuals()
+					self.app.draw_graph()
+					self.app.log(f"Bellman-Ford: Không tìm thấy đường đi từ {start_id} tới {end_id}.", level='CẢNH BÁO')
+					return
+				self._highlight_final_path(path, cost, algo_name="Bellman-Ford")
+				return
+
+			# revert last highlights
+			if last_edge is not None:
+				try:
+					last_edge.color = "gray70"
+				except Exception:
+					pass
+				last_edge = None
+			if last_node is not None:
+				try:
+					last_node.color = "#3B8ED0"
+				except Exception:
+					pass
+				last_node = None
+
+			event = trace[i]
+			etype = event[0]
+			if etype == "pass_start":
+				_t, k = event
+				self.app.log(f"Bellman-Ford: Bắt đầu vòng relax {k}", level='THÔNG BÁO')
+			elif etype == "pass_end":
+				_t, k, updated = event
+				if not updated:
+					self.app.log(f"Bellman-Ford: Dừng sớm tại vòng {k} (không còn cập nhật)", level='THÔNG BÁO')
+			elif etype == "relax":
+				_t, k, u, v, old, new = event
+				edge = _find_edge(u, v)
+				if edge is not None:
+					edge.color = "yellow"
+					last_edge = edge
+				node = node_by_id.get(int(v))
+				if node is not None:
+					node.color = "yellow"
+					last_node = node
+				old_s = "∞" if old == float('inf') else str(old)
+				self.app.log(f"Bellman-Ford: Vòng {k}, relax {u}→{v}: {old_s} → {new}", level='THÔNG BÁO')
+			elif etype == "neg_cycle":
+				_t, u, v = event
+				edge = _find_edge(u, v)
+				if edge is not None:
+					edge.color = "yellow"
+					last_edge = edge
+				self.app.draw_graph()
+				self.app._anim_after_id = None
+				self.app.log("Bellman-Ford: Phát hiện chu trình âm (không xác định đường đi ngắn nhất).", level='LỖI')
+				return
+
+			self.app.draw_graph()
+			i += 1
+			if not self._can_schedule():
+				self.app._anim_after_id = None
+				return
+			self.app._anim_after_id = self.app.after(delay_ms, step)
+
+		step()
 
 	def _mst_total_weight(self, mst_edges) -> int:
 		"""Tính tổng trọng số của cây khung nhỏ nhất.

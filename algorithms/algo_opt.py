@@ -202,6 +202,89 @@ def bellman_ford(nodes, edges, start_id, end_id, directed: bool = True):
     path.reverse()
     return (path, dist[end], False)
 
+
+def bellman_ford_trace(nodes, edges, start_id, end_id, directed: bool = True):
+    """Bellman-Ford có trace step-by-step để mô phỏng.
+
+    Trả về:
+        (path_ids, total_cost, has_negative_cycle, trace)
+
+    Trace events:
+        ("pass_start", k)                 bắt đầu vòng relax thứ k (1-indexed)
+        ("relax", k, u, v, old, new)      relax cạnh u->v làm dist[v] giảm
+        ("pass_end", k, updated_bool)     kết thúc vòng k
+        ("neg_cycle", u, v)              phát hiện chu trình âm reachable từ start
+    """
+
+    node_ids = go.g_node_ids(nodes)
+    start = int(start_id)
+    end = int(end_id)
+    if start not in node_ids or end not in node_ids:
+        return ([], float('inf'), False, [])
+
+    dist = {nid: float('inf') for nid in node_ids}
+    prev = {nid: None for nid in node_ids}
+    dist[start] = 0
+    trace = []
+
+    def relax(u, v, w, k):
+        if dist[u] == float('inf'):
+            return False
+        old = dist[v]
+        new = dist[u] + w
+        if new < old:
+            dist[v] = new
+            prev[v] = u
+            trace.append(("relax", k, int(u), int(v), old, new))
+            return True
+        return False
+
+    n = len(node_ids)
+    for k in range(1, max(n - 1, 0) + 1):
+        trace.append(("pass_start", k))
+        updated = False
+        for e in edges:
+            u = int(e.start_node.id)
+            v = int(e.end_node.id)
+            w = int(e.weight)
+            if u in dist and v in dist:
+                updated = relax(u, v, w, k) or updated
+                if not directed:
+                    updated = relax(v, u, w, k) or updated
+        trace.append(("pass_end", k, bool(updated)))
+        if not updated:
+            break
+
+    # Negative cycle detection (reachable from start)
+    for e in edges:
+        u = int(e.start_node.id)
+        v = int(e.end_node.id)
+        w = int(e.weight)
+        if u in dist and v in dist:
+            if dist[u] != float('inf') and dist[u] + w < dist[v]:
+                trace.append(("neg_cycle", int(u), int(v)))
+                return ([], float('inf'), True, trace)
+            if not directed:
+                if dist[v] != float('inf') and dist[v] + w < dist[u]:
+                    trace.append(("neg_cycle", int(v), int(u)))
+                    return ([], float('inf'), True, trace)
+
+    if dist[end] == float('inf'):
+        return ([], float('inf'), False, trace)
+
+    # Reconstruct path
+    path = []
+    cur = end
+    while cur is not None:
+        path.append(cur)
+        if cur == start:
+            break
+        cur = prev[cur]
+    if not path or path[-1] != start:
+        return ([], float('inf'), False, trace)
+    path.reverse()
+    return (path, dist[end], False, trace)
+
 def prim(nodes, edges):
     """
     Tìm Cây khung nhỏ nhất (MST) sử dụng thuật toán Prim.

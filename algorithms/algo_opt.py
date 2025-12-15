@@ -1,7 +1,7 @@
 # THÀNH VIÊN 3: Cài đặt logic bên trong các hàm này. Nhớ sử dụng `edge.weight` để tính toán.
 import main.graph_objects as go
 
-def dijkstra(nodes, edges, start_id, end_id):
+def dijkstra(nodes, edges, start_id, end_id, directed: bool = True):
     """
     Tìm đường đi ngắn nhất giữa hai đỉnh sử dụng thuật toán Dijkstra.
     
@@ -23,7 +23,7 @@ def dijkstra(nodes, edges, start_id, end_id):
     if start not in node_ids or end not in node_ids:
         return ([], float('inf'))
 
-    adj = go.g_build_directed_adj(edges)
+    adj = go.g_build_directed_adj(edges) if directed else go.g_build_undirected_adj(edges)
     dist = {node_id: float('inf') for node_id in node_ids}
     prev = {node_id: None for node_id in node_ids}
 
@@ -65,7 +65,7 @@ def dijkstra(nodes, edges, start_id, end_id):
     return (path, dist[end])
 
 
-def dijkstra_trace(nodes, edges, start_id, end_id):
+def dijkstra_trace(nodes, edges, start_id, end_id, directed: bool = True):
     """Dijkstra variant that also returns a step-by-step trace for visualization.
 
     Returns:
@@ -82,7 +82,7 @@ def dijkstra_trace(nodes, edges, start_id, end_id):
     if start not in node_ids or end not in node_ids:
         return ([], float('inf'), [])
 
-    adj = go.g_build_directed_adj(edges)
+    adj = go.g_build_directed_adj(edges) if directed else go.g_build_undirected_adj(edges)
     dist = {node_id: float('inf') for node_id in node_ids}
     prev = {node_id: None for node_id in node_ids}
 
@@ -128,6 +128,53 @@ def dijkstra_trace(nodes, edges, start_id, end_id):
 
     path.reverse()
     return (path, dist[end], trace)
+
+
+def dijkstra_all_trace(nodes, edges, start_id, directed: bool = True):
+    """Dijkstra single-source: từ start đến tất cả đỉnh (có trace step-by-step).
+
+    Trả về:
+        (dist, prev, trace)
+
+    Trace events (giống dijkstra_trace):
+        ("settle", u, dist_u)
+        ("relax", u, v, new_dist)
+    """
+
+    node_ids = go.g_node_ids(nodes)
+    start = int(start_id)
+    if start not in node_ids:
+        return ({}, {}, [])
+
+    adj = go.g_build_directed_adj(edges) if directed else go.g_build_undirected_adj(edges)
+    dist = {node_id: float('inf') for node_id in node_ids}
+    prev = {node_id: None for node_id in node_ids}
+    dist[start] = 0
+
+    heap = [(0, start)]
+    trace = []
+    settled = set()
+
+    while heap:
+        current_dist, u = go.g_heapq.heappop(heap)
+        if current_dist != dist[u]:
+            continue
+        if u in settled:
+            continue
+        settled.add(u)
+        trace.append(("settle", u, current_dist))
+
+        for v, w, _edge in adj.get(u, []):
+            if v not in dist:
+                continue
+            new_dist = current_dist + int(w)
+            if new_dist < dist[v]:
+                dist[v] = new_dist
+                prev[v] = u
+                go.g_heapq.heappush(heap, (new_dist, v))
+                trace.append(("relax", u, v, new_dist))
+
+    return (dist, prev, trace)
 
 
 def bellman_ford(nodes, edges, start_id, end_id, directed: bool = True):
@@ -284,6 +331,74 @@ def bellman_ford_trace(nodes, edges, start_id, end_id, directed: bool = True):
         return ([], float('inf'), False, trace)
     path.reverse()
     return (path, dist[end], False, trace)
+
+
+def bellman_ford_all_trace(nodes, edges, start_id, directed: bool = True):
+    """Bellman-Ford single-source: từ start đến tất cả đỉnh (có trace step-by-step).
+
+    Trả về:
+        (dist, prev, has_negative_cycle, trace)
+
+    Trace events:
+        ("pass_start", k)
+        ("relax", k, u, v, old, new)
+        ("pass_end", k, updated_bool)
+        ("neg_cycle", u, v)
+    """
+
+    node_ids = go.g_node_ids(nodes)
+    start = int(start_id)
+    if start not in node_ids:
+        return ({}, {}, False, [])
+
+    dist = {nid: float('inf') for nid in node_ids}
+    prev = {nid: None for nid in node_ids}
+    dist[start] = 0
+    trace = []
+
+    def relax(u, v, w, k):
+        if dist[u] == float('inf'):
+            return False
+        old = dist[v]
+        new = dist[u] + w
+        if new < old:
+            dist[v] = new
+            prev[v] = u
+            trace.append(("relax", k, int(u), int(v), old, new))
+            return True
+        return False
+
+    n = len(node_ids)
+    for k in range(1, max(n - 1, 0) + 1):
+        trace.append(("pass_start", k))
+        updated = False
+        for e in edges:
+            u = int(e.start_node.id)
+            v = int(e.end_node.id)
+            w = int(e.weight)
+            if u in dist and v in dist:
+                updated = relax(u, v, w, k) or updated
+                if not directed:
+                    updated = relax(v, u, w, k) or updated
+        trace.append(("pass_end", k, bool(updated)))
+        if not updated:
+            break
+
+    # Negative cycle detection (reachable from start)
+    for e in edges:
+        u = int(e.start_node.id)
+        v = int(e.end_node.id)
+        w = int(e.weight)
+        if u in dist and v in dist:
+            if dist[u] != float('inf') and dist[u] + w < dist[v]:
+                trace.append(("neg_cycle", int(u), int(v)))
+                return (dist, prev, True, trace)
+            if not directed:
+                if dist[v] != float('inf') and dist[v] + w < dist[u]:
+                    trace.append(("neg_cycle", int(v), int(u)))
+                    return (dist, prev, True, trace)
+
+    return (dist, prev, False, trace)
 
 def prim(nodes, edges):
     """

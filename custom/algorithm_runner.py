@@ -5,8 +5,10 @@ from tkinter import simpledialog
 from algorithms.algo_opt import (
 	bellman_ford,
 	bellman_ford_trace,
+	bellman_ford_all_trace,
 	dijkstra,
 	dijkstra_trace,
+	dijkstra_all_trace,
 	ford_fulkerson,
 	ford_fulkerson_trace,
 	kruskal,
@@ -54,6 +56,25 @@ class AlgorithmRunner:
 		for edge in self.app.edges:
 			edge.color = "gray70"
 
+	def _highlight_reachable_nodes(self, dist: dict, start_id: int, color: str = "#2ECC71"):
+		"""Tô màu tất cả đỉnh reachable (dist != ∞) từ start.
+
+		Chỉ tô màu node; không đụng tới màu cạnh.
+		"""
+		reachable_ids = set()
+		for nid, d in (dist or {}).items():
+			try:
+				if d != float('inf'):
+					reachable_ids.add(int(nid))
+			except Exception:
+				continue
+		for node in self.app.nodes:
+			try:
+				if int(node.id) in reachable_ids:
+					node.color = color
+			except Exception:
+				continue
+
 	def _undirected_semi_euler_end(self, start_id: int | None):
 		if start_id is None:
 			return None
@@ -69,8 +90,9 @@ class AlgorithmRunner:
 			return None
 		return odd[1] if odd[0] == int(start_id) else odd[0]
 
-	def _highlight_final_path(self, path, cost, algo_name: str = "Dijkstra"):
-		self.reset_visuals()
+	def _highlight_final_path(self, path, cost, algo_name: str = "Dijkstra", reset_first: bool = True):
+		if reset_first:
+			self.reset_visuals()
 
 		path_nodes = set(path)
 		for node in self.app.nodes:
@@ -97,6 +119,65 @@ class AlgorithmRunner:
 		self.app.draw_graph()
 		self.app.log(f"{algo_name}: Đường đi {path}, tổng chi phí={cost}", level='THÀNH CÔNG')
 
+	def _ask_optional_end_id(self, title: str):
+		"""Hỏi end_id dạng tùy chọn. Cancel/để trống => None."""
+		raw = simpledialog.askstring(title, "End node id (Cancel/để trống để tính tất cả):")
+		if raw is None:
+			return None
+		raw = str(raw).strip()
+		if not raw:
+			return None
+		try:
+			return int(raw)
+		except Exception:
+			return None
+
+	def _reconstruct_path(self, prev: dict, start_id: int, end_id: int):
+		path = []
+		cur = int(end_id)
+		start = int(start_id)
+		while cur is not None:
+			path.append(cur)
+			if cur == start:
+				break
+			cur = prev.get(cur)
+		if not path or path[-1] != start:
+			return []
+		path.reverse()
+		return path
+
+	def _log_all_distances(self, algo_name: str, start_id: int, dist: dict, directed: bool):
+		mode = "có hướng" if directed else "vô hướng"
+		pairs = []
+		for nid in sorted(dist.keys()):
+			d = dist[nid]
+			ds = "∞" if d == float('inf') else str(d)
+			pairs.append(f"{nid}:{ds}")
+		joined = ", ".join(pairs)
+		self.app.log(
+			f"{algo_name}: Khoảng cách từ {start_id} tới tất cả đỉnh ({mode}): {joined}",
+			level='THÀNH CÔNG',
+		)
+
+	def _log_all_paths(self, algo_name: str, start_id: int, dist: dict, prev: dict, directed: bool):
+		"""Log đường đi ngắn nhất cụ thể từ start tới từng đỉnh."""
+		mode = "có hướng" if directed else "vô hướng"
+		self.app.log(f"{algo_name}: Đường đi ngắn nhất từ {start_id} tới từng đỉnh ({mode}):", level='THÔNG BÁO')
+		for nid in sorted(dist.keys()):
+			d = dist[nid]
+			if int(nid) == int(start_id):
+				self.app.log(f"- {start_id}→{nid}: [{start_id}] (chi phí=0)", level='THÔNG BÁO')
+				continue
+			if d == float('inf'):
+				self.app.log(f"- {start_id}→{nid}: Không đi tới được (chi phí=∞)", level='THÔNG BÁO')
+				continue
+			path = self._reconstruct_path(prev, int(start_id), int(nid))
+			if not path:
+				# Fallback: shouldn't happen if dist is finite, but keep safe
+				self.app.log(f"- {start_id}→{nid}: Không xác định đường đi (chi phí={d})", level='THÔNG BÁO')
+				continue
+			self.app.log(f"- {start_id}→{nid}: {path} (chi phí={d})", level='THÔNG BÁO')
+
 	def run_bellman_ford(self):
 		self.cancel_animation()
 		if not self.app.nodes:
@@ -106,38 +187,49 @@ class AlgorithmRunner:
 		start_id = simpledialog.askinteger("Bellman-Ford", "Start node id:")
 		if start_id is None:
 			return
-		end_id = simpledialog.askinteger("Bellman-Ford", "End node id:")
-		if end_id is None:
-			return
+		end_id = self._ask_optional_end_id("Bellman-Ford")
 
 		directed = bool(getattr(self.app, 'is_directed', False))
-		path, cost, neg_cycle, trace = bellman_ford_trace(
+		dist, prev, neg_cycle, trace = bellman_ford_all_trace(
 			self.app.nodes,
 			self.app.edges,
 			start_id,
-			end_id,
 			directed=directed,
 		)
+
+		path_to_end = []
+		cost_to_end = float('inf')
+		if end_id is not None and end_id in dist and dist[end_id] != float('inf'):
+			path_to_end = self._reconstruct_path(prev, int(start_id), int(end_id))
+			cost_to_end = dist[end_id]
+
+		def finish():
+			if neg_cycle:
+				self.reset_visuals()
+				self.app.draw_graph()
+				self.app.log("Bellman-Ford: Phát hiện chu trình âm (không xác định đường đi ngắn nhất).", level='LỖI')
+				return
+			# Color reachable nodes for start→all mode
+			self.reset_visuals()
+			self._highlight_reachable_nodes(dist, int(start_id))
+			self.app.draw_graph()
+			self._log_all_distances("Bellman-Ford", int(start_id), dist, directed)
+			self._log_all_paths("Bellman-Ford", int(start_id), dist, prev, directed)
+			if end_id is not None:
+				if path_to_end:
+					# Overlay final path highlight without clearing reachable-node coloring
+					self._highlight_final_path(path_to_end, cost_to_end, algo_name="Bellman-Ford", reset_first=False)
+				else:
+					self.app.log(f"Bellman-Ford: Không tìm thấy đường đi từ {start_id} tới {end_id}.", level='CẢNH BÁO')
+
 		if trace:
 			self.app.log(f"Bellman-Ford: Đang mô phỏng {len(trace)} bước...", level='THÔNG BÁO')
-			self.animate_bellman_ford(trace, path, cost, neg_cycle, start_id, end_id, delay_ms=450)
+			self.animate_bellman_ford(trace, path_to_end, cost_to_end, neg_cycle, start_id, end_id, delay_ms=450, on_finish=finish)
 			return
 
-		# Fallback (không có trace)
-		path2, cost2, neg_cycle2 = bellman_ford(self.app.nodes, self.app.edges, start_id, end_id, directed=directed)
-		if neg_cycle2:
-			self.reset_visuals()
-			self.app.draw_graph()
-			self.app.log("Bellman-Ford: Phát hiện chu trình âm (không xác định đường đi ngắn nhất).", level='LỖI')
-			return
-		if not path2:
-			self.reset_visuals()
-			self.app.draw_graph()
-			self.app.log(f"Bellman-Ford: Không tìm thấy đường đi từ {start_id} tới {end_id}.", level='CẢNH BÁO')
-			return
-		self._highlight_final_path(path2, cost2, algo_name="Bellman-Ford")
+		finish()
 
-	def animate_bellman_ford(self, trace, path, cost, neg_cycle, start_id, end_id, delay_ms=450):
+	def animate_bellman_ford(self, trace, path, cost, neg_cycle, start_id, end_id, delay_ms=450, on_finish=None):
 		self.cancel_animation()
 		self.reset_visuals()
 		self.app.draw_graph()
@@ -171,6 +263,12 @@ class AlgorithmRunner:
 
 			if i >= len(trace):
 				self.app._anim_after_id = None
+				if on_finish is not None:
+					try:
+						on_finish()
+					except Exception:
+						pass
+					return
 				if neg_cycle:
 					self.reset_visuals()
 					self.app.draw_graph()
@@ -255,7 +353,7 @@ class AlgorithmRunner:
 
 	# --------- animations ---------
 
-	def animate_dijkstra(self, trace, path, cost, delay_ms=500):
+	def animate_dijkstra(self, trace, path, cost, delay_ms=500, on_finish=None):
 		self.cancel_animation()
 		self.reset_visuals()
 		self.app.draw_graph()
@@ -274,6 +372,12 @@ class AlgorithmRunner:
 
 			if i >= len(trace):
 				self.app._anim_after_id = None
+				if on_finish is not None:
+					try:
+						on_finish()
+					except Exception:
+						pass
+					return
 				if path:
 					self._highlight_final_path(path, cost)
 				else:
@@ -494,23 +598,45 @@ class AlgorithmRunner:
 		start_id = simpledialog.askinteger("Dijkstra", "Start node id:")
 		if start_id is None:
 			return
-		end_id = simpledialog.askinteger("Dijkstra", "End node id:")
-		if end_id is None:
+		end_id = self._ask_optional_end_id("Dijkstra")
+		directed = bool(getattr(self.app, 'is_directed', False))
+
+		# Dijkstra không hỗ trợ trọng số âm
+		for e in self.app.edges:
+			try:
+				if int(getattr(e, 'weight', 0)) < 0:
+					self.app.log("Dijkstra: Không hỗ trợ trọng số âm. Hãy dùng Bellman-Ford.", level='CẢNH BÁO')
+					return
+			except Exception:
+				pass
+
+		dist, prev, trace = dijkstra_all_trace(self.app.nodes, self.app.edges, start_id, directed=directed)
+		path_to_end = []
+		cost_to_end = float('inf')
+		if end_id is not None and end_id in dist and dist[end_id] != float('inf'):
+			path_to_end = self._reconstruct_path(prev, int(start_id), int(end_id))
+			cost_to_end = dist[end_id]
+
+		def finish():
+			# Color reachable nodes for start→all mode
+			self.reset_visuals()
+			self._highlight_reachable_nodes(dist, int(start_id))
+			self.app.draw_graph()
+			self._log_all_distances("Dijkstra", int(start_id), dist, directed)
+			self._log_all_paths("Dijkstra", int(start_id), dist, prev, directed)
+			if end_id is not None:
+				if path_to_end:
+					# Overlay final path highlight without clearing reachable-node coloring
+					self._highlight_final_path(path_to_end, cost_to_end, algo_name="Dijkstra", reset_first=False)
+				else:
+					self.app.log(f"Dijkstra: Không tìm thấy đường đi từ {start_id} tới {end_id}.", level='CẢNH BÁO')
+
+		if trace:
+			self.app.log(f"Dijkstra: Đang mô phỏng {len(trace)} bước...", level='THÔNG BÁO')
+			self.animate_dijkstra(trace, path_to_end, cost_to_end, delay_ms=500, on_finish=finish)
 			return
 
-		path, cost, trace = dijkstra_trace(self.app.nodes, self.app.edges, start_id, end_id)
-		if not trace:
-			path2, cost2 = dijkstra(self.app.nodes, self.app.edges, start_id, end_id)
-			if not path2:
-				self.reset_visuals()
-				self.app.draw_graph()
-				self.app.log(f"Dijkstra: Không tìm thấy đường đi từ {start_id} tới {end_id}.", level='CẢNH BÁO')
-				return
-			self._highlight_final_path(path2, cost2)
-			return
-
-		self.app.log(f"Dijkstra: Đang mô phỏng {len(trace)} bước...", level='THÔNG BÁO')
-		self.animate_dijkstra(trace, path, cost, delay_ms=500)
+		finish()
 
 	def run_prim(self):
 		self.cancel_animation()

@@ -3,6 +3,7 @@ from __future__ import annotations
 from tkinter import simpledialog
 
 from algorithms.algo_opt import (
+	bellman_ford,
 	dijkstra,
 	dijkstra_trace,
 	ford_fulkerson,
@@ -13,7 +14,12 @@ from algorithms.algo_opt import (
 	prim_trace,
 )
 from algorithms.algo_traversal import bfs, dfs, check_bipartite
-from algorithms.algo_euler import fleury_algorithm, hierholzer_algorithm
+from algorithms.algo_euler import (
+	fleury_algorithm,
+	hierholzer_algorithm,
+	euler_classification,
+	directed_euler_classification,
+)
 
 
 class AlgorithmRunner:
@@ -47,7 +53,22 @@ class AlgorithmRunner:
 		for edge in self.app.edges:
 			edge.color = "gray70"
 
-	def _highlight_final_path(self, path, cost):
+	def _undirected_semi_euler_end(self, start_id: int | None):
+		if start_id is None:
+			return None
+		deg = {}
+		for e in self.app.edges:
+			u = int(e.start_node.id)
+			v = int(e.end_node.id)
+			deg[u] = deg.get(u, 0) + 1
+			deg[v] = deg.get(v, 0) + 1
+			
+		odd = [v for v, d in deg.items() if d % 2 == 1]
+		if len(odd) != 2:
+			return None
+		return odd[1] if odd[0] == int(start_id) else odd[0]
+
+	def _highlight_final_path(self, path, cost, algo_name: str = "Dijkstra"):
 		self.reset_visuals()
 
 		path_nodes = set(path)
@@ -55,15 +76,66 @@ class AlgorithmRunner:
 			if int(node.id) in path_nodes:
 				node.color = "yellow"
 
-		path_pairs = set(zip(path, path[1:]))
-		for edge in self.app.edges:
-			u = int(edge.start_node.id)
-			v = int(edge.end_node.id)
-			if (u, v) in path_pairs:
-				edge.color = "yellow"
+		path_pairs = list(zip(path, path[1:]))
+		is_directed = bool(getattr(self.app, 'is_directed', False))
+		if is_directed:
+			path_pair_set = set(path_pairs)
+			for edge in self.app.edges:
+				u = int(edge.start_node.id)
+				v = int(edge.end_node.id)
+				if (u, v) in path_pair_set:
+					edge.color = "yellow"
+		else:
+			path_pair_set = {frozenset((u, v)) for (u, v) in path_pairs}
+			for edge in self.app.edges:
+				u = int(edge.start_node.id)
+				v = int(edge.end_node.id)
+				if frozenset((u, v)) in path_pair_set:
+					edge.color = "yellow"
 
 		self.app.draw_graph()
-		self.app.log(f"Dijkstra: Đường đi {path}, tổng chi phí={cost}", level='THÀNH CÔNG')
+		self.app.log(f"{algo_name}: Đường đi {path}, tổng chi phí={cost}", level='THÀNH CÔNG')
+
+	def run_bellman_ford(self):
+		self.cancel_animation()
+		if not self.app.nodes:
+			self.app.log("Bellman-Ford: Không có đỉnh.", level='CẢNH BÁO')
+			return
+
+		start_id = simpledialog.askinteger("Bellman-Ford", "Start node id:")
+		if start_id is None:
+			return
+		end_id = simpledialog.askinteger("Bellman-Ford", "End node id:")
+		if end_id is None:
+			return
+
+		directed = bool(getattr(self.app, 'is_directed', False))
+		path, cost, neg_cycle = bellman_ford(self.app.nodes, self.app.edges, start_id, end_id, directed=directed)
+		if neg_cycle:
+			self.reset_visuals()
+			self.app.draw_graph()
+			self.app.log("Bellman-Ford: Phát hiện chu trình âm (không xác định đường đi ngắn nhất).", level='LỖI')
+			return
+		if not path:
+			self.reset_visuals()
+			self.app.draw_graph()
+			self.app.log(f"Bellman-Ford: Không tìm thấy đường đi từ {start_id} tới {end_id}.", level='CẢNH BÁO')
+			return
+		self._highlight_final_path(path, cost, algo_name="Bellman-Ford")
+
+	def _mst_total_weight(self, mst_edges) -> int:
+		"""Tính tổng trọng số của cây khung nhỏ nhất.
+
+		mst_edges thường là list các đối tượng Edge (có thuộc tính .weight).
+		"""
+		total = 0
+		for e in mst_edges or []:
+			try:
+				w = getattr(e, "weight", 0)
+				total += int(w)
+			except Exception:
+				continue
+		return total
 
 	# --------- animations ---------
 
@@ -151,7 +223,11 @@ class AlgorithmRunner:
 				for e in mst_edges:
 					e.color = "yellow"
 				self.app.draw_graph()
-				self.app.log(f"Prim: Hoàn thành. Cạnh={len(mst_edges)}", level='THÀNH CÔNG')
+				total = self._mst_total_weight(mst_edges)
+				self.app.log(
+					f"Prim: Hoàn thành. Cạnh={len(mst_edges)}, Tổng trọng số cây khung cực tiểu={total}",
+					level='THÀNH CÔNG',
+				)
 				return
 
 			if last_edge is not None and id(last_edge) not in chosen:
@@ -204,7 +280,11 @@ class AlgorithmRunner:
 				for e in mst_edges:
 					e.color = "yellow"
 				self.app.draw_graph()
-				self.app.log(f"Kruskal: Hoàn thành. Cạnh={len(mst_edges)}", level='THÀNH CÔNG')
+				total = self._mst_total_weight(mst_edges)
+				self.app.log(
+					f"Kruskal: Hoàn thành. Cạnh={len(mst_edges)}, Tổng trọng số={total}",
+					level='THÀNH CÔNG',
+				)
 				return
 
 			if last_edge is not None and id(last_edge) not in chosen:
@@ -333,7 +413,11 @@ class AlgorithmRunner:
 		for e in mst2:
 			e.color = "yellow"
 		self.app.draw_graph()
-		self.app.log(f"Prim: Hoàn thành. Cạnh={len(mst2)}", level='THÀNH CÔNG')
+		total = self._mst_total_weight(mst2)
+		self.app.log(
+			f"Prim: Hoàn thành. Cạnh={len(mst2)}, Tổng trọng số của cây khung cực tiểu ={total}",
+			level='THÀNH CÔNG',
+		)
 
 	def run_kruskal(self):
 		self.cancel_animation()
@@ -352,7 +436,11 @@ class AlgorithmRunner:
 		for e in mst2:
 			e.color = "yellow"
 		self.app.draw_graph()
-		self.app.log(f"Kruskal: Hoàn thành. Cạnh={len(mst2)}", level='THÀNH CÔNG')
+		total = self._mst_total_weight(mst2)
+		self.app.log(
+			f"Kruskal: Hoàn thành. Cạnh={len(mst2)}, Tổng trọng số cây khung cực tiểu ={total}",
+			level='THÀNH CÔNG',
+		)
 
 	def run_ford_fulkerson(self):
 		self.cancel_animation()
@@ -398,6 +486,14 @@ class AlgorithmRunner:
 			self.app.log(f"BFS: Không tìm thấy đường đi từ {start_id}.", level='CẢNH BÁO')
 			return
 
+		unvisited = sorted({int(n.id) for n in self.app.nodes} - {int(x) for x in path})
+		if unvisited:
+			mode = "có hướng" if bool(getattr(self.app, 'is_directed', False)) else "vô hướng"
+			self.app.log(
+				f"BFS: Không đi tới được các đỉnh {unvisited} từ {start_id} (đồ thị {mode}).",
+				level='THÔNG BÁO',
+			)
+
 		self.app.log(f"BFS: Đã thăm {len(path)} đỉnh. Đang mô phỏng...", level='THÔNG BÁO')
 		self.animate_traversal(path, "BFS")
 
@@ -415,6 +511,14 @@ class AlgorithmRunner:
 		if not path:
 			self.app.log(f"DFS: Không tìm thấy đường đi từ {start_id}.", level='CẢNH BÁO')
 			return
+
+		unvisited = sorted({int(n.id) for n in self.app.nodes} - {int(x) for x in path})
+		if unvisited:
+			mode = "có hướng" if bool(getattr(self.app, 'is_directed', False)) else "vô hướng"
+			self.app.log(
+				f"DFS: Không đi tới được các đỉnh {unvisited} từ {start_id} (đồ thị {mode}).",
+				level='THÔNG BÁO',
+			)
 
 		self.app.log(f"DFS: Đã thăm {len(path)} đỉnh. Đang mô phỏng...", level='THÔNG BÁO')
 		self.animate_traversal(path, "DFS")
@@ -489,12 +593,16 @@ class AlgorithmRunner:
 		self.app.draw_graph()
 		
 		node_map = {n.id: n for n in self.app.nodes}
-		# Create a map for edges to easily find them: (u, v) -> edge
+		is_directed = bool(getattr(self.app, 'is_directed', False))
+		# Map edges to support parallel edges and direction-aware lookup
 		edge_map = {}
 		for e in self.app.edges:
-			u, v = e.start_node.id, e.end_node.id
-			edge_map[(u, v)] = e
-			edge_map[(v, u)] = e 
+			u, v = int(e.start_node.id), int(e.end_node.id)
+			if is_directed:
+				edge_map.setdefault((u, v), []).append(e)
+			else:
+				key = frozenset((u, v))
+				edge_map.setdefault(key, []).append(e)
 
 		i = 0
 		
@@ -519,9 +627,11 @@ class AlgorithmRunner:
 					node_map[v_id].color = "yellow"
 				
 				# Highlight edge (u, v)
-				if (u_id, v_id) in edge_map:
-					edge_map[(u_id, v_id)].color = "red"
-					edge_map[(u_id, v_id)].thickness = 3
+				key = (u_id, v_id) if is_directed else frozenset((u_id, v_id))
+				lst = edge_map.get(key)
+				if lst:
+					ed = lst.pop(0)
+					ed.color = "red"
 			
 			self.app.draw_graph()
 			
@@ -544,12 +654,45 @@ class AlgorithmRunner:
 			self.app.log("Fleury: Không có đỉnh.", level='CẢNH BÁO')
 			return
 		
-		path = fleury_algorithm(self.app.nodes, self.app.edges)
+		is_directed = bool(getattr(self.app, 'is_directed', False))
+		if is_directed:
+			kind, start_id, end_id = directed_euler_classification(self.app.nodes, self.app.edges)
+			if kind == "none":
+				self.app.log("Fleury: Đồ thị không có chu trình/đường đi Euler có hướng.", level='CẢNH BÁO')
+				return
+			if kind == "euler":
+				self.app.log(f"Fleury: Đồ thị có chu trình Euler có hướng (bắt đầu tại {start_id}).", level='THÔNG BÁO')
+			else:
+				self.app.log(
+					f"Fleury: Đồ thị có đường đi Euler có hướng từ {start_id} đến {end_id}.",
+					level='THÔNG BÁO',
+				)
+		else:
+			kind, start_id = euler_classification(self.app.nodes, self.app.edges)
+			if kind == "none":
+				self.app.log("Fleury: Đồ thị không có chu trình/đường đi Euler.", level='CẢNH BÁO')
+				return
+			if kind == "euler":
+				self.app.log(f"Fleury: Đồ thị có chu trình Euler (bắt đầu tại {start_id}).", level='THÔNG BÁO')
+			else:
+				end_id = self._undirected_semi_euler_end(start_id)
+				if end_id is not None:
+					self.app.log(
+						f"Fleury: Đồ thị có đường đi Euler (nửa Euler) từ {start_id} đến {end_id}.",
+						level='THÔNG BÁO',
+					)
+				else:
+					self.app.log(
+						f"Fleury: Đồ thị có đường đi Euler (nửa Euler), bắt đầu tại {start_id}.",
+						level='THÔNG BÁO',
+					)
+		
+		path = fleury_algorithm(self.app.nodes, self.app.edges, directed=is_directed)
 		if not path:
-			self.app.log("Fleury: Không tìm thấy đường đi/chu trình Euler.", level='CẢNH BÁO')
+			self.app.log("Fleury: Không dựng được đường đi/chu trình Euler.", level='CẢNH BÁO')
 			return
 			
-		self.app.log(f"Fleury: Tìm thấy đường đi với {len(path)} đỉnh. Đang mô phỏng...", level='THÔNG BÁO')
+		self.app.log(f"Fleury: Tìm thấy đường đi/chu trình với {len(path)} đỉnh. Đang mô phỏng...", level='THÔNG BÁO')
 		self.animate_euler(path, "Fleury")
 
 	def run_hierholzer(self):
@@ -558,10 +701,43 @@ class AlgorithmRunner:
 			self.app.log("Hierholzer: Không có đỉnh.", level='CẢNH BÁO')
 			return
 
-		path = hierholzer_algorithm(self.app.nodes, self.app.edges)
+		is_directed = bool(getattr(self.app, 'is_directed', False))
+		if is_directed:
+			kind, start_id, end_id = directed_euler_classification(self.app.nodes, self.app.edges)
+			if kind == "none":
+				self.app.log("Hierholzer: Đồ thị không có chu trình/đường đi Euler có hướng.", level='CẢNH BÁO')
+				return
+			if kind == "euler":
+				self.app.log(f"Hierholzer: Đồ thị có chu trình Euler có hướng (bắt đầu tại {start_id}).", level='THÔNG BÁO')
+			else:
+				self.app.log(
+					f"Hierholzer: Đồ thị có đường đi Euler có hướng từ {start_id} đến {end_id}.",
+					level='THÔNG BÁO',
+				)
+		else:
+			kind, start_id = euler_classification(self.app.nodes, self.app.edges)
+			if kind == "none":
+				self.app.log("Hierholzer: Đồ thị không có chu trình/đường đi Euler.", level='CẢNH BÁO')
+				return
+			if kind == "euler":
+				self.app.log(f"Hierholzer: Đồ thị có chu trình Euler (bắt đầu tại {start_id}).", level='THÔNG BÁO')
+			else:
+				end_id = self._undirected_semi_euler_end(start_id)
+				if end_id is not None:
+					self.app.log(
+						f"Hierholzer: Đồ thị có đường đi Euler (nửa Euler) từ {start_id} đến {end_id}.",
+						level='THÔNG BÁO',
+					)
+				else:
+					self.app.log(
+						f"Hierholzer: Đồ thị có đường đi Euler (nửa Euler), bắt đầu tại {start_id}.",
+						level='THÔNG BÁO',
+					)
+		
+		path = hierholzer_algorithm(self.app.nodes, self.app.edges, directed=is_directed)
 		if not path:
-			self.app.log("Hierholzer: Không tìm thấy chu trình Euler.", level='CẢNH BÁO')
+			self.app.log("Hierholzer: Không dựng được đường đi/chu trình Euler.", level='CẢNH BÁO')
 			return
 			
-		self.app.log(f"Hierholzer: Tìm thấy chu trình với {len(path)} đỉnh. Đang mô phỏng...", level='THÔNG BÁO')
+		self.app.log(f"Hierholzer: Tìm thấy đường đi/chu trình với {len(path)} đỉnh. Đang mô phỏng...", level='THÔNG BÁO')
 		self.animate_euler(path, "Hierholzer")

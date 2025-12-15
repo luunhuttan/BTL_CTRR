@@ -129,6 +129,79 @@ def dijkstra_trace(nodes, edges, start_id, end_id):
     path.reverse()
     return (path, dist[end], trace)
 
+
+def bellman_ford(nodes, edges, start_id, end_id, directed: bool = True):
+    """Bellman-Ford: đường đi ngắn nhất với trọng số âm.
+
+    Trả về:
+        (path_ids, total_cost, has_negative_cycle)
+
+    Ghi chú:
+    - Nếu phát hiện chu trình âm (reachable từ start), trả về has_negative_cycle=True.
+    - Với đồ thị vô hướng, coi mỗi cạnh là 2 chiều.
+    """
+    node_ids = go.g_node_ids(nodes)
+    start = int(start_id)
+    end = int(end_id)
+    if start not in node_ids or end not in node_ids:
+        return ([], float('inf'), False)
+
+    dist = {nid: float('inf') for nid in node_ids}
+    prev = {nid: None for nid in node_ids}
+    dist[start] = 0
+
+    def relax(u, v, w):
+        if dist[u] == float('inf'):
+            return False
+        nd = dist[u] + w
+        if nd < dist[v]:
+            dist[v] = nd
+            prev[v] = u
+            return True
+        return False
+
+    n = len(node_ids)
+    for _ in range(max(n - 1, 0)):
+        updated = False
+        for e in edges:
+            u = int(e.start_node.id)
+            v = int(e.end_node.id)
+            w = int(e.weight)
+            if u in dist and v in dist:
+                updated = relax(u, v, w) or updated
+                if not directed:
+                    updated = relax(v, u, w) or updated
+        if not updated:
+            break
+
+    # Negative cycle detection (reachable from start)
+    for e in edges:
+        u = int(e.start_node.id)
+        v = int(e.end_node.id)
+        w = int(e.weight)
+        if u in dist and v in dist:
+            if dist[u] != float('inf') and dist[u] + w < dist[v]:
+                return ([], float('inf'), True)
+            if not directed:
+                if dist[v] != float('inf') and dist[v] + w < dist[u]:
+                    return ([], float('inf'), True)
+
+    if dist[end] == float('inf'):
+        return ([], float('inf'), False)
+
+    # Reconstruct path
+    path = []
+    cur = end
+    while cur is not None:
+        path.append(cur)
+        if cur == start:
+            break
+        cur = prev[cur]
+    if not path or path[-1] != start:
+        return ([], float('inf'), False)
+    path.reverse()
+    return (path, dist[end], False)
+
 def prim(nodes, edges):
     """
     Tìm Cây khung nhỏ nhất (MST) sử dụng thuật toán Prim.

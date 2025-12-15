@@ -18,69 +18,140 @@ class GraphGUI:
         """Creates the left control panel."""
         self.sidebar = ctk.CTkFrame(self.app, width=250, corner_radius=0)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        # self.sidebar.grid_rowconfigure(20, weight=1) # No longer needed as log is moved
+        self.sidebar.grid_rowconfigure(0, weight=1)
+        self.sidebar.grid_columnconfigure(0, weight=1)
 
-        # Header
-        self.lbl_title = ctk.CTkLabel(self.sidebar, text="QUẢN LÝ ĐỒ THỊ", font=ctk.CTkFont(size=24, weight="bold"))
-        self.lbl_title.grid(row=0, column=0, padx=20, pady=(20, 10))
+        # Make sidebar scrollable to avoid hiding controls on smaller heights.
+        try:
+            self.sidebar_scroll = ctk.CTkScrollableFrame(self.sidebar, fg_color="transparent")
+            self.sidebar_scroll.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+            self.sidebar_scroll.grid_columnconfigure(0, weight=1)
+            parent = self.sidebar_scroll
+
+            # Mouse wheel scrolling (Windows/Linux/Mac) - active only when cursor is over the sidebar.
+            self._install_sidebar_mousewheel(self.sidebar_scroll)
+        except Exception:
+            parent = self.sidebar
+
+        # Header (previous style)
+        self.lbl_title = ctk.CTkLabel(
+            parent,
+            text="QUẢN LÝ ĐỒ THỊ",
+            justify="center",
+            anchor="center",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        )
+        self.lbl_title.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
 
         # Group 1: Algorithms
-        self.lbl_algo = ctk.CTkLabel(self.sidebar, text="Thuật toán", anchor="w", font=ctk.CTkFont(weight="bold"))
+        self.lbl_algo = ctk.CTkLabel(parent, text="Thuật toán", anchor="w", font=ctk.CTkFont(weight="bold"))
         self.lbl_algo.grid(row=1, column=0, padx=20, pady=(10, 0), sticky="ew")
 
-        self.btn_bfs = ctk.CTkButton(self.sidebar, text="BFS", command=self.app.run_bfs)
+        self.btn_bfs = ctk.CTkButton(parent, text="BFS", command=self.app.run_bfs)
         self.btn_bfs.grid(row=2, column=0, padx=20, pady=5)
         
-        self.btn_dfs = ctk.CTkButton(self.sidebar, text="DFS", command=self.app.run_dfs)
+        self.btn_dfs = ctk.CTkButton(parent, text="DFS", command=self.app.run_dfs)
         self.btn_dfs.grid(row=3, column=0, padx=20, pady=5)
         
-        self.btn_dijkstra = ctk.CTkButton(self.sidebar, text="Dijkstra", command=self.app.run_dijkstra)
+        self.btn_dijkstra = ctk.CTkButton(parent, text="Dijkstra", command=self.app.run_dijkstra)
         self.btn_dijkstra.grid(row=4, column=0, padx=20, pady=5)
-        
-        self.btn_prim = ctk.CTkButton(self.sidebar, text="Prim", command=self.app.run_prim)
-        self.btn_prim.grid(row=5, column=0, padx=20, pady=5)
 
-        self.btn_bipartite = ctk.CTkButton(self.sidebar, text="Kiểm tra 2 phía", command=self.app.run_check_bipartite)
-        self.btn_bipartite.grid(row=6, column=0, padx=20, pady=5)
+        self.btn_bellman_ford = ctk.CTkButton(parent, text="Bellman-Ford", command=self.app.run_bellman_ford)
+        self.btn_bellman_ford.grid(row=5, column=0, padx=20, pady=5)
+        
+        self.btn_prim = ctk.CTkButton(parent, text="Prim", command=self.app.run_prim)
+        self.btn_prim.grid(row=6, column=0, padx=20, pady=5)
+
+        self.btn_bipartite = ctk.CTkButton(parent, text="Kiểm tra 2 phía", command=self.app.run_check_bipartite)
+        self.btn_bipartite.grid(row=7, column=0, padx=20, pady=5)
 
         # Advanced Algorithms
-        self.lbl_adv = ctk.CTkLabel(self.sidebar, text="Thuật toán nâng cao", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_adv.grid(row=7, column=0, padx=20, pady=(10, 0), sticky="ew")
+        self.lbl_adv = ctk.CTkLabel(parent, text="Thuật toán nâng cao", anchor="w", font=ctk.CTkFont(weight="bold"))
+        self.lbl_adv.grid(row=8, column=0, padx=20, pady=(10, 0), sticky="ew")
 
-        self.btn_kruskal = ctk.CTkButton(self.sidebar, text="Kruskal", command=self.app.run_kruskal)
-        self.btn_kruskal.grid(row=8, column=0, padx=20, pady=5)
+        self.btn_kruskal = ctk.CTkButton(parent, text="Kruskal", command=self.app.run_kruskal)
+        self.btn_kruskal.grid(row=9, column=0, padx=20, pady=5)
 
-        self.btn_ford = ctk.CTkButton(self.sidebar, text="Ford-Fulkerson", command=self.app.run_ford_fulkerson)
-        self.btn_ford.grid(row=9, column=0, padx=20, pady=5)
+        self.btn_ford = ctk.CTkButton(parent, text="Ford-Fulkerson", command=self.app.run_ford_fulkerson)
+        self.btn_ford.grid(row=10, column=0, padx=20, pady=5)
 
-        self.btn_fleury = ctk.CTkButton(self.sidebar, text="Fleury", command=self.app.run_fleury)
-        self.btn_fleury.grid(row=10, column=0, padx=20, pady=5)
+        self.btn_fleury = ctk.CTkButton(parent, text="Fleury", command=self.app.run_fleury)
+        self.btn_fleury.grid(row=11, column=0, padx=20, pady=5)
 
-        self.btn_hierholzer = ctk.CTkButton(self.sidebar, text="Hierholzer", command=self.app.run_hierholzer)
-        self.btn_hierholzer.grid(row=11, column=0, padx=20, pady=5)
+        self.btn_hierholzer = ctk.CTkButton(parent, text="Hierholzer", command=self.app.run_hierholzer)
+        self.btn_hierholzer.grid(row=12, column=0, padx=20, pady=5)
 
         # Group 2: Features
-        self.lbl_features = ctk.CTkLabel(self.sidebar, text="Chức năng", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_features.grid(row=12, column=0, padx=20, pady=(20, 0), sticky="ew")
+        self.lbl_features = ctk.CTkLabel(parent, text="Chức năng", anchor="w", font=ctk.CTkFont(weight="bold"))
+        self.lbl_features.grid(row=13, column=0, padx=20, pady=(20, 0), sticky="ew")
 
-        self.btn_random = ctk.CTkButton(self.sidebar, text="Tạo đồ thị ngẫu nhiên", fg_color="#E67E22", hover_color="#D35400", command=self.app.generate_random)
-        self.btn_random.grid(row=13, column=0, padx=20, pady=5)
+        self.btn_random = ctk.CTkButton(parent, text="Tạo đồ thị ngẫu nhiên", fg_color="#E67E22", hover_color="#D35400", command=self.app.generate_random)
+        self.btn_random.grid(row=14, column=0, padx=20, pady=5)
 
-        self.btn_save = ctk.CTkButton(self.sidebar, text="Lưu file", command=self.app.save_graph)
-        self.btn_save.grid(row=14, column=0, padx=20, pady=5)
+        self.btn_save = ctk.CTkButton(parent, text="Lưu file", command=self.app.save_graph)
+        self.btn_save.grid(row=15, column=0, padx=20, pady=5)
 
-        self.btn_load = ctk.CTkButton(self.sidebar, text="Đọc file", command=self.app.load_graph)
-        self.btn_load.grid(row=15, column=0, padx=20, pady=5)
+        self.btn_load = ctk.CTkButton(parent, text="Đọc file", command=self.app.load_graph)
+        self.btn_load.grid(row=16, column=0, padx=20, pady=5)
 
-        self.btn_matrix = ctk.CTkButton(self.sidebar, text="Hiện Ma trận/DS kề", command=self.app.show_representations)
-        self.btn_matrix.grid(row=16, column=0, padx=20, pady=5)
+        self.btn_matrix = ctk.CTkButton(parent, text="Hiện Ma trận/DS kề", command=self.app.show_representations)
+        self.btn_matrix.grid(row=17, column=0, padx=20, pady=5)
 
-        self.btn_toggle = ctk.CTkButton(self.sidebar, text="Đổi: Có hướng/Vô hướng", fg_color="#5D6D7E", hover_color="#34495E", command=self.app.toggle_directed)
-        self.btn_toggle.grid(row=17, column=0, padx=20, pady=5)
+        self.btn_toggle = ctk.CTkButton(parent, text="Đổi: Có hướng/Vô hướng", fg_color="#5D6D7E", hover_color="#34495E", command=self.app.toggle_directed)
+        self.btn_toggle.grid(row=18, column=0, padx=20, pady=5)
+
+        self.btn_toggle_weight = ctk.CTkButton(parent, text="Bật/Tắt trọng số", fg_color="#5D6D7E", hover_color="#34495E", command=self.app.toggle_weights)
+        self.btn_toggle_weight.grid(row=19, column=0, padx=20, pady=5)
 
         # Group 3: Utilities
-        self.btn_clear = ctk.CTkButton(self.sidebar, text="Xóa bảng vẽ", fg_color="#C0392B", hover_color="#E74C3C", command=self.app.clear_canvas)
-        self.btn_clear.grid(row=18, column=0, padx=20, pady=(20, 10))
+        self.btn_clear = ctk.CTkButton(parent, text="Xóa bảng vẽ", fg_color="#C0392B", hover_color="#E74C3C", command=self.app.clear_canvas)
+        self.btn_clear.grid(row=20, column=0, padx=20, pady=(20, 10))
+
+    def _install_sidebar_mousewheel(self, scrollable_frame: "ctk.CTkScrollableFrame"):
+        """Allow scrolling the sidebar with the mouse wheel.
+
+        CustomTkinter's CTkScrollableFrame sometimes doesn't scroll with the wheel by default
+        depending on OS/backend, so we bind it here.
+        """
+
+        # Try to access the internal canvas used by CTkScrollableFrame.
+        canvas = getattr(scrollable_frame, "_parent_canvas", None)
+        if canvas is None:
+            return
+
+        def _on_windows_mousewheel(event):
+            # event.delta is typically 120/-120 per notch on Windows.
+            step = int(-1 * (event.delta / 120)) if event.delta else 0
+            if step:
+                canvas.yview_scroll(step, "units")
+            return "break"
+
+        def _on_linux_scroll_up(_event):
+            canvas.yview_scroll(-1, "units")
+            return "break"
+
+        def _on_linux_scroll_down(_event):
+            canvas.yview_scroll(1, "units")
+            return "break"
+
+        def _bind_all(_event=None):
+            # Bind on root so that wheel works when hovering child widgets too.
+            self.app.bind_all("<MouseWheel>", _on_windows_mousewheel)
+            self.app.bind_all("<Button-4>", _on_linux_scroll_up)
+            self.app.bind_all("<Button-5>", _on_linux_scroll_down)
+
+        def _unbind_all(_event=None):
+            self.app.unbind_all("<MouseWheel>")
+            self.app.unbind_all("<Button-4>")
+            self.app.unbind_all("<Button-5>")
+
+        # Activate only when mouse is over the scrollable region.
+        for w in (scrollable_frame, canvas):
+            try:
+                w.bind("<Enter>", _bind_all)
+                w.bind("<Leave>", _unbind_all)
+            except Exception:
+                pass
 
     def setup_right_panel(self):
         """Creates the right panel for logs."""
@@ -152,7 +223,9 @@ class GraphGUI:
         self.canvas.grid(row=0, column=1, sticky="nsew")
 
         # Event Bindings
-        self.canvas.bind("<Button-1>", self.app.on_left_click)
+        self.canvas.bind("<Button-1>", self.app.on_left_press)
+        self.canvas.bind("<B1-Motion>", self.app.on_left_drag)
+        self.canvas.bind("<ButtonRelease-1>", self.app.on_left_release)
         self.canvas.bind("<Button-3>", self.app.on_right_click) # Windows/Linux Right Click
         self.canvas.bind("<Button-2>", self.app.on_right_click) # MacOS Right Click
         

@@ -8,6 +8,17 @@ def get_adjacency_list(nodes, edges, directed=True):
     Helper function to build an adjacency map from the list of nodes and edges.
     Returns dict: node_id -> sorted list of neighbor ids.
     """
+
+    # If the GUI attaches direction mode onto edges, prefer that over the
+    # function argument so BFS/DFS automatically match the current mode.
+    # Important: only override when the caller requests directed traversal.
+    # (check_bipartite passes directed=False and should remain undirected.)
+    try:
+        if directed and edges and hasattr(edges[0], "is_directed"):
+            directed = bool(getattr(edges[0], "is_directed"))
+    except Exception:
+        pass
+
     adj = {node.id: [] for node in nodes}
     for edge in edges:
         u, v = edge.start_node.id, edge.end_node.id

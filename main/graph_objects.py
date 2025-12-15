@@ -61,7 +61,7 @@ class Edge:
         self.weight = int(weight)
         self.color = "gray70"
 
-    def draw(self, canvas, is_directed=True):
+    def draw(self, canvas, is_directed=True, show_weight=True, curve_offset=0):
         # Tính toán điểm đầu và điểm cuối
         start_x, start_y = self.start_node.x, self.start_node.y
         end_x, end_y = self.end_node.x, self.end_node.y
@@ -78,18 +78,53 @@ class Edge:
             end_x = end_x - dx * ratio
             end_y = end_y - dy * ratio
         
-        # Vẽ đường thẳng
-        # Sử dụng arrow=tk.LAST để chỉ hướng nếu là đồ thị có hướng
+        # Vẽ đường (thẳng hoặc cong). Nếu có 2 chiều (u->v và v->u) thì dùng cong để khỏi chồng lên nhau.
         arrow_opt = tk.LAST if is_directed else None
-        canvas.create_line(start_x, start_y, end_x, end_y, 
-                           fill=self.color, width=2, smooth=True, arrow=arrow_opt)
-        
-        # Tính toán trung điểm cho văn bản trọng số
-        mid_x = (start_x + end_x) / 2
-        mid_y = (start_y + end_y) / 2
-        
-        # Vẽ trọng số với một hộp nền nhỏ để dễ đọc
-        text = str(self.weight)
-        # Tạo một hình chữ nhật nền nhỏ phía sau văn bản
-        canvas.create_rectangle(mid_x - 10, mid_y - 10, mid_x + 10, mid_y + 10, fill="#2b2b2b", outline="")
-        canvas.create_text(mid_x, mid_y, text=text, fill="gray90", font=("Roboto", 10))
+
+        if curve_offset:
+            # Dùng đường cong bậc 2: start -> control -> end
+            dx = end_x - start_x
+            dy = end_y - start_y
+            dist = math.sqrt(dx**2 + dy**2) or 1.0
+            # vector pháp tuyến đơn vị
+            nx = -dy / dist
+            ny = dx / dist
+            mx = (start_x + end_x) / 2
+            my = (start_y + end_y) / 2
+            cx = mx + nx * curve_offset
+            cy = my + ny * curve_offset
+
+            canvas.create_line(
+                start_x,
+                start_y,
+                cx,
+                cy,
+                end_x,
+                end_y,
+                fill=self.color,
+                width=2,
+                smooth=True,
+                arrow=arrow_opt,
+            )
+
+            # Midpoint gần đúng tại t=0.5 của Bezier bậc 2
+            mid_x = (start_x + 2 * cx + end_x) / 4
+            mid_y = (start_y + 2 * cy + end_y) / 4
+        else:
+            canvas.create_line(
+                start_x,
+                start_y,
+                end_x,
+                end_y,
+                fill=self.color,
+                width=2,
+                smooth=True,
+                arrow=arrow_opt,
+            )
+            mid_x = (start_x + end_x) / 2
+            mid_y = (start_y + end_y) / 2
+
+        if show_weight:
+            text = str(self.weight)
+            canvas.create_rectangle(mid_x - 10, mid_y - 10, mid_x + 10, mid_y + 10, fill="#2b2b2b", outline="")
+            canvas.create_text(mid_x, mid_y, text=text, fill="gray90", font=("Roboto", 10))

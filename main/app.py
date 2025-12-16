@@ -18,7 +18,7 @@ except ValueError:
 
 # Import separated modules
 from main.graph_objects import Node, Edge
-from main.app_ui import GraphGUI
+from custom.app_ui import GraphGUI
 from custom.algorithm_runner import AlgorithmRunner
 from algorithms.algo_traversal import bfs, dfs, check_bipartite
 from data.generator import RandomGraphGenerator

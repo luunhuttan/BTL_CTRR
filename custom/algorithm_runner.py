@@ -75,6 +75,49 @@ class AlgorithmRunner:
 			except Exception:
 				continue
 
+	def _highlight_shortest_path_tree_edges(
+		self,
+		prev: dict,
+		dist: dict,
+		start_id: int,
+		directed: bool,
+		color: str = "#2ECC71",
+	):
+		"""Tô màu các cạnh thuộc cây đường đi ngắn (theo prev).
+
+		Với mỗi đỉnh v reachable (dist[v] != ∞) và v != start, tô cạnh prev[v]→v.
+		"""
+		if not prev or not dist:
+			return
+
+		def _find_edge(u, v):
+			if directed:
+				for e in self.app.edges:
+					if int(e.start_node.id) == int(u) and int(e.end_node.id) == int(v):
+						return e
+				return None
+			for e in self.app.edges:
+				a = int(e.start_node.id)
+				b = int(e.end_node.id)
+				if (a == int(u) and b == int(v)) or (a == int(v) and b == int(u)):
+					return e
+			return None
+
+		start = int(start_id)
+		for v, d in dist.items():
+			try:
+				vv = int(v)
+				if vv == start or d == float('inf'):
+					continue
+				u = prev.get(vv)
+				if u is None:
+					continue
+				ed = _find_edge(int(u), vv)
+				if ed is not None:
+					ed.color = color
+			except Exception:
+				continue
+
 	def _undirected_semi_euler_end(self, start_id: int | None):
 		if start_id is None:
 			return None
@@ -212,6 +255,7 @@ class AlgorithmRunner:
 			# Color reachable nodes for start→all mode
 			self.reset_visuals()
 			self._highlight_reachable_nodes(dist, int(start_id))
+			self._highlight_shortest_path_tree_edges(prev, dist, int(start_id), directed)
 			self.app.draw_graph()
 			self._log_all_distances("Bellman-Ford", int(start_id), dist, directed)
 			self._log_all_paths("Bellman-Ford", int(start_id), dist, prev, directed)
@@ -621,6 +665,7 @@ class AlgorithmRunner:
 			# Color reachable nodes for start→all mode
 			self.reset_visuals()
 			self._highlight_reachable_nodes(dist, int(start_id))
+			self._highlight_shortest_path_tree_edges(prev, dist, int(start_id), directed)
 			self.app.draw_graph()
 			self._log_all_distances("Dijkstra", int(start_id), dist, directed)
 			self._log_all_paths("Dijkstra", int(start_id), dist, prev, directed)

@@ -30,6 +30,8 @@ class AlgorithmRunner:
 
 	def __init__(self, app):
 		self.app = app
+		# Animation player state (for Pause/Prev/Next)
+		self._player = None
 
 	def _can_schedule(self) -> bool:
 		if getattr(self.app, "_closing", False):
@@ -42,12 +44,178 @@ class AlgorithmRunner:
 	# --------- shared helpers ---------
 
 	def cancel_animation(self):
+		# Stop scheduled ticks
 		if getattr(self.app, "_anim_after_id", None) is not None:
 			try:
 				self.app.after_cancel(self.app._anim_after_id)
 			except Exception:
 				pass
 			self.app._anim_after_id = None
+		# Clear interactive player
+		self._player = None
+
+	def _player_active(self) -> bool:
+		return self._player is not None
+
+	def toggle_pause(self) -> bool:
+		"""Toggle pause/resume. Returns True when paused."""
+		if not self._player_active():
+			return True
+		paused = bool(self._player.get("paused", False))
+		if paused:
+			self._player["paused"] = False
+			# Resume auto-play
+			self._player["auto"] = True
+			self._schedule_player_tick()
+			return False
+		# Pause: only cancel scheduled tick, keep player state.
+		self._player["paused"] = True
+		if getattr(self.app, "_anim_after_id", None) is not None:
+			try:
+				self.app.after_cancel(self.app._anim_after_id)
+			except Exception:
+				pass
+			self.app._anim_after_id = None
+		return True
+
+	def step_next(self):
+		"""Manual step forward one frame (also pauses autoplay)."""
+		if not self._player_active():
+			return
+		# Stop auto scheduling and pause
+		try:
+			if getattr(self.app, "_anim_after_id", None) is not None:
+				self.app.after_cancel(self.app._anim_after_id)
+				self.app._anim_after_id = None
+		except Exception:
+			self.app._anim_after_id = None
+		self._player["paused"] = True
+		self._player["auto"] = False
+
+		idx = int(self._player.get("i", 0))
+		n = int(self._player.get("n", 0))
+		if n <= 0:
+			return
+		if idx >= n - 1:
+			# Already at end
+			return
+		idx += 1
+		self._player["i"] = idx
+		self._render_player_frame(idx)
+
+	def step_prev(self):
+		"""Manual step backward one frame (also pauses autoplay)."""
+		if not self._player_active():
+			return
+		try:
+			if getattr(self.app, "_anim_after_id", None) is not None:
+				self.app.after_cancel(self.app._anim_after_id)
+				self.app._anim_after_id = None
+		except Exception:
+			self.app._anim_after_id = None
+		self._player["paused"] = True
+		self._player["auto"] = False
+
+		idx = int(self._player.get("i", 0))
+		if idx <= 0:
+			return
+		idx -= 1
+		self._player["i"] = idx
+		self._render_player_frame(idx)
+
+	def _start_player(self, *, total_frames: int, render_frame, delay_ms: int = 500, on_complete=None, on_forward=None):
+		"""Start an interactive animation player.
+
+		Frames are indexed [0..total_frames-1]. render_frame(i) should fully render state for i.
+		on_forward(i) (optional) is called only when first time reaching frame i.
+		on_complete() (optional) is called when reaching the last frame for the first time.
+		"""
+		self.cancel_animation()
+		try:
+			n = max(1, int(total_frames))
+		except Exception:
+			n = 1
+		self._player = {
+			"n": n,
+			"i": 0,
+			"render": render_frame,
+			"delay": int(delay_ms) if delay_ms is not None else 500,
+			"paused": False,
+			"auto": True,
+			"max_seen": -1,
+			"on_forward": on_forward,
+			"on_complete": on_complete,
+			"completed": False,
+		}
+		self._render_player_frame(0)
+		self._schedule_player_tick()
+
+	def _render_player_frame(self, idx: int):
+		if not self._player_active():
+			return
+		n = int(self._player.get("n", 0))
+		idx = max(0, min(int(idx), max(0, n - 1)))
+		render = self._player.get("render")
+		try:
+			if callable(render):
+				render(idx)
+		except Exception:
+			# Never crash UI due to a frame render
+			pass
+
+		# Call on_forward only once per newly reached max index
+		try:
+			max_seen = int(self._player.get("max_seen", -1))
+		except Exception:
+			max_seen = -1
+		if idx > max_seen:
+			self._player["max_seen"] = idx
+			on_forward = self._player.get("on_forward")
+			if callable(on_forward):
+				try:
+					on_forward(idx)
+				except Exception:
+					pass
+			# Completion callback once
+			if idx == n - 1 and not bool(self._player.get("completed", False)):
+				self._player["completed"] = True
+				on_complete = self._player.get("on_complete")
+				if callable(on_complete):
+					try:
+						on_complete()
+					except Exception:
+						pass
+
+	def _schedule_player_tick(self):
+		if not self._player_active():
+			return
+		if bool(self._player.get("paused", False)):
+			return
+		if not bool(self._player.get("auto", True)):
+			return
+		if not self._can_schedule():
+			self.app._anim_after_id = None
+			return
+		try:
+			delay = int(self._player.get("delay", 500))
+		except Exception:
+			delay = 500
+		self.app._anim_after_id = self.app.after(delay, self._player_tick)
+
+	def _player_tick(self):
+		if not self._player_active():
+			self.app._anim_after_id = None
+			return
+		# advance one frame in auto mode
+		idx = int(self._player.get("i", 0))
+		n = int(self._player.get("n", 0))
+		if idx >= n - 1:
+			self.app._anim_after_id = None
+			return
+		idx += 1
+		self._player["i"] = idx
+		self._render_player_frame(idx)
+		self._schedule_player_tick()
 
 	def reset_visuals(self):
 		for node in self.app.nodes:
@@ -274,15 +442,10 @@ class AlgorithmRunner:
 		finish()
 
 	def animate_bellman_ford(self, trace, path, cost, neg_cycle, start_id, end_id, delay_ms=450, on_finish=None):
+		# Backward/forward stepping requires deterministic re-render.
 		self.cancel_animation()
-		self.reset_visuals()
-		self.app.draw_graph()
-
-		node_by_id = {int(n.id): n for n in self.app.nodes}
 		is_directed = bool(getattr(self.app, 'is_directed', False))
-		last_edge = None
-		last_node = None
-		i = 0
+		node_by_id = {int(n.id): n for n in self.app.nodes}
 
 		def _find_edge(u, v):
 			if is_directed:
@@ -290,7 +453,6 @@ class AlgorithmRunner:
 					if int(e.start_node.id) == int(u) and int(e.end_node.id) == int(v):
 						return e
 				return None
-			# undirected: match either direction
 			for e in self.app.edges:
 				a = int(e.start_node.id)
 				b = int(e.end_node.id)
@@ -298,15 +460,70 @@ class AlgorithmRunner:
 					return e
 			return None
 
-		def step():
-			nonlocal i, last_edge, last_node
+		def render_frame(frame_idx: int):
+			self.reset_visuals()
+			last_edge = None
+			last_node = None
+			limit = min(int(frame_idx), len(trace))
+			for j in range(limit):
+				# revert last highlights (like original per-step)
+				if last_edge is not None:
+					try:
+						last_edge.color = "gray70"
+					except Exception:
+						pass
+					last_edge = None
+				if last_node is not None:
+					try:
+						last_node.color = "#3B8ED0"
+					except Exception:
+						pass
+					last_node = None
 
-			if not self._can_schedule():
-				self.app._anim_after_id = None
+				event = trace[j]
+				etype = event[0]
+				if etype == "relax":
+					_t, _k, u, v, _old, _new = event
+					edge = _find_edge(u, v)
+					if edge is not None:
+						edge.color = "yellow"
+						last_edge = edge
+					node = node_by_id.get(int(v))
+					if node is not None:
+						node.color = "yellow"
+						last_node = node
+				elif etype == "neg_cycle":
+					_t, u, v = event
+					edge = _find_edge(u, v)
+					if edge is not None:
+						edge.color = "yellow"
+						last_edge = edge
+					break
+
+			self.app.draw_graph()
+
+		def on_forward(frame_idx: int):
+			if frame_idx <= 0:
 				return
-
-			if i >= len(trace):
-				self.app._anim_after_id = None
+			j = frame_idx - 1
+			if 0 <= j < len(trace):
+				event = trace[j]
+				etype = event[0]
+				if etype == "pass_start":
+					_t, k = event
+					self.app.log(f"Bellman-Ford: Bắt đầu vòng relax {k}", level='THÔNG BÁO')
+				elif etype == "pass_end":
+					_t, k, updated = event
+					if not updated:
+						self.app.log(f"Bellman-Ford: Dừng sớm tại vòng {k} (không còn cập nhật)", level='THÔNG BÁO')
+				elif etype == "relax":
+					_t, k, u, v, old, new = event
+					old_s = "∞" if old == float('inf') else str(old)
+					self.app.log(f"Bellman-Ford: Vòng {k}, relax {u}→{v}: {old_s} → {new}", level='THÔNG BÁO')
+				elif etype == "neg_cycle":
+					self.app.log("Bellman-Ford: Phát hiện chu trình âm (không xác định đường đi ngắn nhất).", level='LỖI')
+			if frame_idx == len(trace):
+				# Call finish once for final log/output
 				if on_finish is not None:
 					try:
 						on_finish()
@@ -314,72 +531,19 @@ class AlgorithmRunner:
 						pass
 					return
 				if neg_cycle:
-					self.reset_visuals()
-					self.app.draw_graph()
 					self.app.log("Bellman-Ford: Phát hiện chu trình âm (không xác định đường đi ngắn nhất).", level='LỖI')
 					return
 				if not path:
-					self.reset_visuals()
-					self.app.draw_graph()
 					self.app.log(f"Bellman-Ford: Không tìm thấy đường đi từ {start_id} tới {end_id}.", level='CẢNH BÁO')
 					return
-				self._highlight_final_path(path, cost, algo_name="Bellman-Ford")
-				return
+				self.app.log(f"Bellman-Ford: Hoàn thành.", level='THÀNH CÔNG')
 
-			# revert last highlights
-			if last_edge is not None:
-				try:
-					last_edge.color = "gray70"
-				except Exception:
-					pass
-				last_edge = None
-			if last_node is not None:
-				try:
-					last_node.color = "#3B8ED0"
-				except Exception:
-					pass
-				last_node = None
-
-			event = trace[i]
-			etype = event[0]
-			if etype == "pass_start":
-				_t, k = event
-				self.app.log(f"Bellman-Ford: Bắt đầu vòng relax {k}", level='THÔNG BÁO')
-			elif etype == "pass_end":
-				_t, k, updated = event
-				if not updated:
-					self.app.log(f"Bellman-Ford: Dừng sớm tại vòng {k} (không còn cập nhật)", level='THÔNG BÁO')
-			elif etype == "relax":
-				_t, k, u, v, old, new = event
-				edge = _find_edge(u, v)
-				if edge is not None:
-					edge.color = "yellow"
-					last_edge = edge
-				node = node_by_id.get(int(v))
-				if node is not None:
-					node.color = "yellow"
-					last_node = node
-				old_s = "∞" if old == float('inf') else str(old)
-				self.app.log(f"Bellman-Ford: Vòng {k}, relax {u}→{v}: {old_s} → {new}", level='THÔNG BÁO')
-			elif etype == "neg_cycle":
-				_t, u, v = event
-				edge = _find_edge(u, v)
-				if edge is not None:
-					edge.color = "yellow"
-					last_edge = edge
-				self.app.draw_graph()
-				self.app._anim_after_id = None
-				self.app.log("Bellman-Ford: Phát hiện chu trình âm (không xác định đường đi ngắn nhất).", level='LỖI')
-				return
-
-			self.app.draw_graph()
-			i += 1
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-			self.app._anim_after_id = self.app.after(delay_ms, step)
-
-		step()
+		self._start_player(
+			total_frames=len(trace) + 1,
+			render_frame=render_frame,
+			delay_ms=delay_ms,
+			on_forward=on_forward,
+		)
 
 	def _mst_total_weight(self, mst_edges) -> int:
 		"""Tính tổng trọng số của cây khung nhỏ nhất.
@@ -398,24 +562,46 @@ class AlgorithmRunner:
 	# --------- animations ---------
 
 	def animate_dijkstra(self, trace, path, cost, delay_ms=500, on_finish=None):
+		# Deterministic player rendering
 		self.cancel_animation()
-		self.reset_visuals()
-		self.app.draw_graph()
-
 		node_by_id = {int(n.id): n for n in self.app.nodes}
-		settled_ids = set()
-		last_relax_edge = None
-		i = 0
 
-		def step():
-			nonlocal i, last_relax_edge
+		def render_frame(frame_idx: int):
+			self.reset_visuals()
+			settled_ids = set()
+			last_relax_edge = None
+			limit = min(int(frame_idx), len(trace))
+			for j in range(limit):
+				if last_relax_edge is not None:
+					try:
+						last_relax_edge.color = "gray70"
+					except Exception:
+						pass
+					last_relax_edge = None
+				event = trace[j]
+				etype = event[0]
+				if etype == "settle":
+					_t, u, _du = event
+					settled_ids.add(int(u))
+					for sid in settled_ids:
+						node = node_by_id.get(sid)
+						if node is not None:
+							node.color = "gray70"
+					node = node_by_id.get(int(u))
+					if node is not None:
+						node.color = "yellow"
+				elif etype == "relax":
+					_t, u, v, _nd = event
+					for edge in self.app.edges:
+						if int(edge.start_node.id) == int(u) and int(edge.end_node.id) == int(v):
+							edge.color = "yellow"
+							last_relax_edge = edge
+							break
 
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
+			self.app.draw_graph()
 
-			if i >= len(trace):
-				self.app._anim_after_id = None
+		def on_forward(frame_idx: int):
+			if frame_idx == len(trace):
 				if on_finish is not None:
 					try:
 						on_finish()
@@ -423,213 +609,187 @@ class AlgorithmRunner:
 						pass
 					return
 				if path:
-					self._highlight_final_path(path, cost)
-				else:
-					self.reset_visuals()
-					self.app.draw_graph()
-					self.app.log("Dijkstra: Không tìm thấy đường đi.", level='CẢNH BÁO')
-				return
+					self._highlight_final_path(path, cost, algo_name="Dijkstra")
+					return
+				self.app.log("Dijkstra: Không tìm thấy đường đi.", level='CẢNH BÁO')
 
-			if last_relax_edge is not None:
-				last_relax_edge.color = "gray70"
-				last_relax_edge = None
-
-			event = trace[i]
-			etype = event[0]
-
-			if etype == "settle":
-				_t, u, _du = event
-				settled_ids.add(int(u))
-				for sid in settled_ids:
-					node = node_by_id.get(sid)
-					if node is not None:
-						node.color = "gray70"
-				node = node_by_id.get(int(u))
-				if node is not None:
-					node.color = "yellow"
-
-			elif etype == "relax":
-				_t, u, v, _nd = event
-				for edge in self.app.edges:
-					if int(edge.start_node.id) == int(u) and int(edge.end_node.id) == int(v):
-						edge.color = "yellow"
-						last_relax_edge = edge
-						break
-
-			self.app.draw_graph()
-			i += 1
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-			self.app._anim_after_id = self.app.after(delay_ms, step)
-
-		step()
+		self._start_player(total_frames=len(trace) + 1, render_frame=render_frame, delay_ms=delay_ms, on_forward=on_forward)
 
 	def animate_prim(self, trace, mst_edges, delay_ms=500):
 		self.cancel_animation()
-		self.reset_visuals()
-		self.app.draw_graph()
 
-		chosen = set()
-		last_edge = None
-		i = 0
+		def render_frame(frame_idx: int):
+			self.reset_visuals()
+			chosen = set()
+			last_edge = None
+			limit = min(int(frame_idx), len(trace))
+			for j in range(limit):
+				if last_edge is not None and id(last_edge) not in chosen:
+					try:
+						last_edge.color = "gray70"
+					except Exception:
+						pass
+					last_edge = None
+				event = trace[j]
+				etype = event[0]
+				if etype == "consider":
+					_t, edge = event
+					edge.color = "yellow"
+					last_edge = edge
+				elif etype == "accept":
+					_t, edge = event
+					chosen.add(id(edge))
+					edge.color = "yellow"
+					last_edge = None
 
-		def step():
-			nonlocal i, last_edge
-
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-
-			if i >= len(trace):
-				self.app._anim_after_id = None
+			if frame_idx >= len(trace):
 				self.reset_visuals()
 				for e in mst_edges:
 					e.color = "yellow"
 				self.app.draw_graph()
+				return
+
+			self.app.draw_graph()
+
+		def on_forward(frame_idx: int):
+			j = frame_idx - 1
+			if 0 <= j < len(trace):
+				event = trace[j]
+				etype = event[0]
+				if etype == "start":
+					_t, start_id = event
+					self.app.log(f"Prim: Bắt đầu thành phần tại {start_id}", level='THÔNG BÁO')
+			if frame_idx == len(trace):
 				total = self._mst_total_weight(mst_edges)
 				self.app.log(
 					f"Prim: Hoàn thành. Cạnh={len(mst_edges)}, Tổng trọng số cây khung cực tiểu={total}",
 					level='THÀNH CÔNG',
 				)
-				return
 
-			if last_edge is not None and id(last_edge) not in chosen:
-				last_edge.color = "gray70"
-				last_edge = None
-
-			event = trace[i]
-			etype = event[0]
-			if etype == "start":
-				_t, start_id = event
-				self.app.log(f"Prim: Bắt đầu thành phần tại {start_id}", level='THÔNG BÁO')
-			elif etype == "consider":
-				_t, edge = event
-				edge.color = "yellow"
-				last_edge = edge
-			elif etype == "accept":
-				_t, edge = event
-				chosen.add(id(edge))
-				edge.color = "yellow"
-				last_edge = None
-
-			self.app.draw_graph()
-			i += 1
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-			self.app._anim_after_id = self.app.after(delay_ms, step)
-
-		step()
+		self._start_player(
+			total_frames=len(trace) + 1,
+			render_frame=render_frame,
+			delay_ms=delay_ms,
+			on_forward=on_forward,
+		)
 
 	def animate_kruskal(self, trace, mst_edges, delay_ms=500):
 		self.cancel_animation()
-		self.reset_visuals()
-		self.app.draw_graph()
 
-		chosen = set()
-		last_edge = None
-		i = 0
+		def render_frame(frame_idx: int):
+			self.reset_visuals()
+			chosen = set()
+			last_edge = None
+			limit = min(int(frame_idx), len(trace))
+			for j in range(limit):
+				if last_edge is not None and id(last_edge) not in chosen:
+					try:
+						last_edge.color = "gray70"
+					except Exception:
+						pass
+					last_edge = None
+				event = trace[j]
+				etype = event[0]
+				if etype == "start":
+					continue
+				if len(event) < 2:
+					continue
+				edge = event[1]
+				if etype == "consider":
+					edge.color = "yellow"
+					last_edge = edge
+				elif etype == "accept":
+					chosen.add(id(edge))
+					edge.color = "yellow"
+					last_edge = None
+				elif etype == "reject":
+					edge.color = "yellow"
+					last_edge = edge
 
-		def step():
-			nonlocal i, last_edge
-
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-
-			if i >= len(trace):
-				self.app._anim_after_id = None
+			if frame_idx >= len(trace):
 				self.reset_visuals()
 				for e in mst_edges:
 					e.color = "yellow"
 				self.app.draw_graph()
+				return
+
+			self.app.draw_graph()
+
+		def on_forward(frame_idx: int):
+			j = frame_idx - 1
+			if 0 <= j < len(trace):
+				event = trace[j]
+				etype = event[0]
+				if etype == "start" and len(event) >= 2:
+					start_id = event[1]
+					self.app.log(f"Kruskal: Bắt đầu (đỉnh chọn) = {start_id}", level='THÔNG BÁO')
+			if frame_idx == len(trace):
 				total = self._mst_total_weight(mst_edges)
 				self.app.log(
 					f"Kruskal: Hoàn thành. Cạnh={len(mst_edges)}, Tổng trọng số={total}",
 					level='THÀNH CÔNG',
 				)
-				return
 
-			if last_edge is not None and id(last_edge) not in chosen:
-				last_edge.color = "gray70"
-				last_edge = None
-
-			event = trace[i]
-			etype = event[0]
-			_t, edge = event
-
-			if etype == "consider":
-				edge.color = "yellow"
-				last_edge = edge
-			elif etype == "accept":
-				chosen.add(id(edge))
-				edge.color = "yellow"
-				last_edge = None
-			elif etype == "reject":
-				edge.color = "yellow"
-				last_edge = edge
-
-			self.app.draw_graph()
-			i += 1
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-			self.app._anim_after_id = self.app.after(delay_ms, step)
-
-		step()
+		self._start_player(
+			total_frames=len(trace) + 1,
+			render_frame=render_frame,
+			delay_ms=delay_ms,
+			on_forward=on_forward,
+		)
 
 	def animate_ford_fulkerson(self, trace, flow_network, max_flow, delay_ms=700):
 		self.cancel_animation()
-		self.reset_visuals()
-		self.app.draw_graph()
 
-		last_path_edges = []
-		i = 0
+		def render_frame(frame_idx: int):
+			self.reset_visuals()
+			last_path_edges = []
+			limit = min(int(frame_idx), len(trace))
+			for j in range(limit):
+				# clear last path
+				for e in last_path_edges:
+					try:
+						e.color = "gray70"
+					except Exception:
+						pass
+				last_path_edges = []
+				event = trace[j]
+				etype = event[0]
+				if etype == "augment":
+					_t, path_pairs, _bottleneck, _flow_after = event
+					for (u, v) in path_pairs:
+						for edge in self.app.edges:
+							if int(edge.start_node.id) == int(u) and int(edge.end_node.id) == int(v):
+								edge.color = "yellow"
+								last_path_edges.append(edge)
+								break
 
-		def step():
-			nonlocal i, last_path_edges
-
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-
-			if i >= len(trace):
-				self.app._anim_after_id = None
+			if frame_idx >= len(trace):
 				self.reset_visuals()
 				for e in flow_network:
 					if getattr(e, "flow", 0) > 0:
 						e.color = "yellow"
 				self.app.draw_graph()
-				self.app.log(f"Ford-Fulkerson: Hoàn thành. luồng cực đại={max_flow}", level='THÀNH CÔNG')
 				return
-
-			for e in last_path_edges:
-				e.color = "gray70"
-			last_path_edges = []
-
-
-			event = trace[i]
-			etype = event[0]
-			if etype == "augment":
-				_t, path_pairs, bottleneck, flow_after = event
-				self.app.log(f"Ford-Fulkerson: Tăng thêm +{bottleneck} (luồng={flow_after})", level='THÔNG BÁO')
-
-				for (u, v) in path_pairs:
-					for edge in self.app.edges:
-						if int(edge.start_node.id) == int(u) and int(edge.end_node.id) == int(v):
-							edge.color = "yellow"
-							last_path_edges.append(edge)
-							break
 
 			self.app.draw_graph()
-			i += 1
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-			self.app._anim_after_id = self.app.after(delay_ms, step)
 
-		step()
+		def on_forward(frame_idx: int):
+			j = frame_idx - 1
+			if 0 <= j < len(trace):
+				event = trace[j]
+				etype = event[0]
+				if etype == "augment":
+					_t, _path_pairs, bottleneck, flow_after = event
+					self.app.log(f"Ford-Fulkerson: Tăng thêm +{bottleneck} (luồng={flow_after})", level='THÔNG BÁO')
+			if frame_idx == len(trace):
+				self.app.log(f"Ford-Fulkerson: Hoàn thành. luồng cực đại={max_flow}", level='THÀNH CÔNG')
+
+		self._start_player(
+			total_frames=len(trace) + 1,
+			render_frame=render_frame,
+			delay_ms=delay_ms,
+			on_forward=on_forward,
+		)
 
 	# --------- public handlers (called by GraphApp) ---------
 
@@ -689,13 +849,21 @@ class AlgorithmRunner:
 			self.app.log("Prim: Không có đỉnh.", level='CẢNH BÁO')
 			return
 
-		mst, trace = prim_trace(self.app.nodes, self.app.edges)
+		start_id = simpledialog.askinteger("Prim", "Start node id:")
+		if start_id is None:
+			return
+		node_ids = {int(n.id) for n in self.app.nodes}
+		if int(start_id) not in node_ids:
+			self.app.log(f"Prim: Đỉnh bắt đầu {start_id} không tồn tại.", level='CẢNH BÁO')
+			return
+
+		mst, trace = prim_trace(self.app.nodes, self.app.edges, start_id)
 		if trace:
 			self.app.log(f"Prim: Đang mô phỏng {len(trace)} bước...", level='THÔNG BÁO')
 			self.animate_prim(trace, mst, delay_ms=500)
 			return
 
-		mst2 = prim(self.app.nodes, self.app.edges)
+		mst2 = prim(self.app.nodes, self.app.edges, start_id)
 		self.reset_visuals()
 		for e in mst2:
 			e.color = "yellow"
@@ -712,13 +880,21 @@ class AlgorithmRunner:
 			self.app.log("Kruskal: Không có đỉnh.", level='CẢNH BÁO')
 			return
 
-		mst, trace = kruskal_trace(self.app.nodes, self.app.edges)
+		start_id = simpledialog.askinteger("Kruskal", "Start node id:")
+		if start_id is None:
+			return
+		node_ids = {int(n.id) for n in self.app.nodes}
+		if int(start_id) not in node_ids:
+			self.app.log(f"Kruskal: Đỉnh bắt đầu {start_id} không tồn tại.", level='CẢNH BÁO')
+			return
+
+		mst, trace = kruskal_trace(self.app.nodes, self.app.edges, start_id)
 		if trace:
 			self.app.log(f"Kruskal: Đang mô phỏng {len(trace)} bước...", level='THÔNG BÁO')
 			self.animate_kruskal(trace, mst, delay_ms=400)
 			return
 
-		mst2 = kruskal(self.app.nodes, self.app.edges)
+		mst2 = kruskal(self.app.nodes, self.app.edges, start_id)
 		self.reset_visuals()
 		for e in mst2:
 			e.color = "yellow"
@@ -773,6 +949,13 @@ class AlgorithmRunner:
 			self.app.log(f"BFS: Không tìm thấy đường đi từ {start_id}.", level='CẢNH BÁO')
 			return
 
+		# In ra thứ tự duyệt
+		try:
+			order_str = " → ".join(str(int(x)) for x in path)
+		except Exception:
+			order_str = str(path)
+		self.app.log(f"BFS: Thứ tự duyệt: {order_str}", level='THÔNG BÁO')
+
 		unvisited = sorted({int(n.id) for n in self.app.nodes} - {int(x) for x in path})
 		if unvisited:
 			mode = "có hướng" if bool(getattr(self.app, 'is_directed', False)) else "vô hướng"
@@ -799,6 +982,13 @@ class AlgorithmRunner:
 			self.app.log(f"DFS: Không tìm thấy đường đi từ {start_id}.", level='CẢNH BÁO')
 			return
 
+		# In ra thứ tự duyệt
+		try:
+			order_str = " → ".join(str(int(x)) for x in path)
+		except Exception:
+			order_str = str(path)
+		self.app.log(f"DFS: Thứ tự duyệt: {order_str}", level='THÔNG BÁO')
+
 		unvisited = sorted({int(n.id) for n in self.app.nodes} - {int(x) for x in path})
 		if unvisited:
 			mode = "có hướng" if bool(getattr(self.app, 'is_directed', False)) else "vô hướng"
@@ -811,38 +1001,29 @@ class AlgorithmRunner:
 		self.animate_traversal(path, "DFS")
 
 	def animate_traversal(self, path_ids, algo_name, delay_ms=500):
-		self.reset_visuals()
-		self.app.draw_graph()
-		
+		self.cancel_animation()
 		node_map = {n.id: n for n in self.app.nodes}
-		i = 0
-		
-		def step():
-			nonlocal i
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-			if i >= len(path_ids):
-				self.app._anim_after_id = None
-				self.app.log(f"{algo_name}: Hoàn thành.", level='THÀNH CÔNG')
-				return
-			
-			node_id = path_ids[i]
-			if node_id in node_map:
-				node = node_map[node_id]
-				node.color = "yellow"
-				# Optional: Highlight edge from previous node if exists
-				# Note: This is a simple visualization, it doesn't strictly follow the tree edges
-				# but it shows the order of visitation.
-			
+
+		def render_frame(frame_idx: int):
+			self.reset_visuals()
+			k = min(int(frame_idx), len(path_ids))
+			for t in range(k):
+				nid = path_ids[t]
+				node = node_map.get(nid)
+				if node is not None:
+					node.color = "yellow"
 			self.app.draw_graph()
-			i += 1
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-			self.app._anim_after_id = self.app.after(delay_ms, step)
-			
-		step()
+
+		def on_forward(frame_idx: int):
+			if frame_idx == len(path_ids):
+				self.app.log(f"{algo_name}: Hoàn thành.", level='THÀNH CÔNG')
+
+		self._start_player(
+			total_frames=len(path_ids) + 1,
+			render_frame=render_frame,
+			delay_ms=delay_ms,
+			on_forward=on_forward,
+		)
 
 	def run_check_bipartite(self):
 		self.cancel_animation()
@@ -876,64 +1057,52 @@ class AlgorithmRunner:
 		self.app.draw_graph()
 
 	def animate_euler(self, path_ids, algo_name, delay_ms=800):
-		self.reset_visuals()
-		self.app.draw_graph()
-		
+		self.cancel_animation()
 		node_map = {n.id: n for n in self.app.nodes}
 		is_directed = bool(getattr(self.app, 'is_directed', False))
-		# Map edges to support parallel edges and direction-aware lookup
-		edge_map = {}
-		for e in self.app.edges:
-			u, v = int(e.start_node.id), int(e.end_node.id)
-			if is_directed:
-				edge_map.setdefault((u, v), []).append(e)
-			else:
-				key = frozenset((u, v))
-				edge_map.setdefault(key, []).append(e)
 
-		i = 0
-		
-		def step():
-			nonlocal i
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-			
-			# Highlight start node
-			if i == 0 and len(path_ids) > 0:
-				if path_ids[0] in node_map:
-					node_map[path_ids[0]].color = "yellow"
+		def render_frame(frame_idx: int):
+			self.reset_visuals()
+			# Rebuild edge map each render so stepping backward is deterministic.
+			edge_map = {}
+			for e in self.app.edges:
+				u, v = int(e.start_node.id), int(e.end_node.id)
+				if is_directed:
+					edge_map.setdefault((u, v), []).append(e)
+				else:
+					key = frozenset((u, v))
+					edge_map.setdefault(key, []).append(e)
 
-			# If we have visited at least one node, we can highlight the edge from prev to curr
-			if i > 0 and i < len(path_ids):
-				u_id = path_ids[i-1]
+			k = min(int(frame_idx), len(path_ids))
+			if k > 0 and path_ids:
+				n0 = node_map.get(path_ids[0])
+				if n0 is not None:
+					n0.color = "yellow"
+
+			for i in range(1, k):
+				u_id = path_ids[i - 1]
 				v_id = path_ids[i]
-				
-				# Highlight node v
-				if v_id in node_map:
-					node_map[v_id].color = "yellow"
-				
-				# Highlight edge (u, v)
+				node = node_map.get(v_id)
+				if node is not None:
+					node.color = "yellow"
 				key = (u_id, v_id) if is_directed else frozenset((u_id, v_id))
 				lst = edge_map.get(key)
 				if lst:
 					ed = lst.pop(0)
 					ed.color = "red"
-			
-			self.app.draw_graph()
-			
-			i += 1
-			if i >= len(path_ids):
-				self.app._anim_after_id = None
-				self.app.log(f"{algo_name}: Hoàn thành.", level='THÀNH CÔNG')
-				return
 
-			if not self._can_schedule():
-				self.app._anim_after_id = None
-				return
-			self.app._anim_after_id = self.app.after(delay_ms, step)
-			
-		step()
+			self.app.draw_graph()
+
+		def on_forward(frame_idx: int):
+			if frame_idx == len(path_ids):
+				self.app.log(f"{algo_name}: Hoàn thành.", level='THÀNH CÔNG')
+
+		self._start_player(
+			total_frames=len(path_ids) + 1,
+			render_frame=render_frame,
+			delay_ms=delay_ms,
+			on_forward=on_forward,
+		)
 
 	def run_fleury(self):
 		self.cancel_animation()

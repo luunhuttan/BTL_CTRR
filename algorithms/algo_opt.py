@@ -400,7 +400,7 @@ def bellman_ford_all_trace(nodes, edges, start_id, directed: bool = True):
 
     return (dist, prev, False, trace)
 
-def prim(nodes, edges):
+def prim(nodes, edges, start_id=None):
     """
     Tìm Cây khung nhỏ nhất (MST) sử dụng thuật toán Prim.
     
@@ -436,6 +436,15 @@ def prim(nodes, edges):
                 if nxt not in visited:
                     go.g_heapq.heappush(heap, (nxt_w, v, nxt, nxt_edge))
 
+    # If a start node is provided, run its component first (useful for visualization)
+    if start_id is not None:
+        try:
+            start0 = int(start_id)
+        except Exception:
+            start0 = None
+        if start0 in node_ids and start0 not in visited:
+            run_from(start0)
+
     # If disconnected, return a spanning forest
     for start in node_ids:
         if start not in visited:
@@ -444,7 +453,7 @@ def prim(nodes, edges):
     return mst_edges
 
 
-def prim_trace(nodes, edges):
+def prim_trace(nodes, edges, start_id=None):
     """Prim variant that also returns a step-by-step trace for visualization.
 
     Returns:
@@ -484,13 +493,21 @@ def prim_trace(nodes, edges):
                 if nxt not in visited:
                     go.g_heapq.heappush(heap, (nxt_w, v, nxt, nxt_edge))
 
+    if start_id is not None:
+        try:
+            start0 = int(start_id)
+        except Exception:
+            start0 = None
+        if start0 in node_ids and start0 not in visited:
+            run_from(start0)
+
     for start in node_ids:
         if start not in visited:
             run_from(start)
 
     return (mst_edges, trace)
 
-def kruskal(nodes, edges):
+def kruskal(nodes, edges, start_id=None):
     """
     Tìm Cây khung nhỏ nhất (MST) sử dụng thuật toán Kruskal.
     
@@ -542,7 +559,7 @@ def kruskal(nodes, edges):
     return mst_edges
 
 
-def kruskal_trace(nodes, edges):
+def kruskal_trace(nodes, edges, start_id=None):
     """Kruskal variant that also returns a step-by-step trace for visualization.
 
     Returns:
@@ -583,6 +600,14 @@ def kruskal_trace(nodes, edges):
     sorted_edges = sorted(edges, key=lambda e: e.weight)
     mst_edges = []
     trace = []
+
+    if start_id is not None:
+        try:
+            start0 = int(start_id)
+        except Exception:
+            start0 = None
+        if start0 in node_ids:
+            trace.append(("start", int(start0)))
 
     for edge in sorted_edges:
         u = int(edge.start_node.id)

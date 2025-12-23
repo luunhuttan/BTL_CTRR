@@ -65,47 +65,68 @@ class GraphGUI:
         self.btn_bipartite = ctk.CTkButton(parent, text="Kiểm tra 2 phía", command=self.app.run_check_bipartite)
         self.btn_bipartite.grid(row=7, column=0, padx=20, pady=5)
 
+        # Animation Controls
+        self.anim_controls = ctk.CTkFrame(parent, fg_color="transparent")
+        self.anim_controls.grid(row=8, column=0, padx=20, pady=(5, 10), sticky="ew")
+        self.anim_controls.grid_columnconfigure((0, 1, 2), weight=1)
+
+        def _toggle_pause():
+            paused = bool(self.app.toggle_animation_pause())
+            try:
+                self.btn_pause.configure(text="Tiếp tục" if paused else "Tạm dừng")
+            except Exception:
+                pass
+
+        self.btn_prev = ctk.CTkButton(self.anim_controls, text="Back", width=70, command=self.app.animation_prev)
+        self.btn_prev.grid(row=0, column=0, padx=(0, 5), pady=0, sticky="ew")
+
+        self.btn_pause = ctk.CTkButton(self.anim_controls, text="Stop", width=70, command=_toggle_pause)
+        self.btn_pause.grid(row=0, column=1, padx=5, pady=0, sticky="ew")
+
+        self.btn_next = ctk.CTkButton(self.anim_controls, text="Next", width=70, command=self.app.animation_next)
+        self.btn_next.grid(row=0, column=2, padx=(5, 0), pady=0, sticky="ew")
+
         # Advanced Algorithms
         self.lbl_adv = ctk.CTkLabel(parent, text="Thuật toán nâng cao", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_adv.grid(row=8, column=0, padx=20, pady=(10, 0), sticky="ew")
+        self.lbl_adv.grid(row=9, column=0, padx=20, pady=(10, 0), sticky="ew")
 
         self.btn_kruskal = ctk.CTkButton(parent, text="Kruskal", command=self.app.run_kruskal)
-        self.btn_kruskal.grid(row=9, column=0, padx=20, pady=5)
+        self.btn_kruskal.grid(row=10, column=0, padx=20, pady=5)
 
         self.btn_ford = ctk.CTkButton(parent, text="Ford-Fulkerson", command=self.app.run_ford_fulkerson)
-        self.btn_ford.grid(row=10, column=0, padx=20, pady=5)
+        self.btn_ford.grid(row=11, column=0, padx=20, pady=5)
 
         self.btn_fleury = ctk.CTkButton(parent, text="Fleury", command=self.app.run_fleury)
-        self.btn_fleury.grid(row=11, column=0, padx=20, pady=5)
+        self.btn_fleury.grid(row=12, column=0, padx=20, pady=5)
 
         self.btn_hierholzer = ctk.CTkButton(parent, text="Hierholzer", command=self.app.run_hierholzer)
-        self.btn_hierholzer.grid(row=12, column=0, padx=20, pady=5)
+        self.btn_hierholzer.grid(row=13, column=0, padx=20, pady=5)
 
         # Group 2: Features
         self.lbl_features = ctk.CTkLabel(parent, text="Chức năng", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.lbl_features.grid(row=13, column=0, padx=20, pady=(20, 0), sticky="ew")
+        self.lbl_features.grid(row=14, column=0, padx=20, pady=(20, 0), sticky="ew")
 
         self.btn_random = ctk.CTkButton(parent, text="Tạo đồ thị ngẫu nhiên", fg_color="#E67E22", hover_color="#D35400", command=self.app.generate_random)
-        self.btn_random.grid(row=14, column=0, padx=20, pady=5)
+        self.btn_random.grid(row=15, column=0, padx=20, pady=5)
 
         self.btn_save = ctk.CTkButton(parent, text="Lưu file", command=self.app.save_graph)
-        self.btn_save.grid(row=15, column=0, padx=20, pady=5)
+        self.btn_save.grid(row=16, column=0, padx=20, pady=5)
 
         self.btn_load = ctk.CTkButton(parent, text="Đọc file", command=self.app.load_graph)
-        self.btn_load.grid(row=16, column=0, padx=20, pady=5)
+        self.btn_load.grid(row=17, column=0, padx=20, pady=5)
 
         self.btn_matrix = ctk.CTkButton(parent, text="Hiện Ma trận/DS kề", command=self.app.show_representations)
-        self.btn_matrix.grid(row=17, column=0, padx=20, pady=5)
+        self.btn_matrix.grid(row=18, column=0, padx=20, pady=5)
 
         self.btn_toggle = ctk.CTkButton(parent, text="Đổi: Có hướng/Vô hướng", fg_color="#5D6D7E", hover_color="#34495E", command=self.app.toggle_directed)
-        self.btn_toggle.grid(row=18, column=0, padx=20, pady=5)
+        self.btn_toggle.grid(row=19, column=0, padx=20, pady=5)
 
         self.btn_toggle_weight = ctk.CTkButton(parent, text="Bật/Tắt trọng số", fg_color="#5D6D7E", hover_color="#34495E", command=self.app.toggle_weights)
-        self.btn_toggle_weight.grid(row=19, column=0, padx=20, pady=5)
+        self.btn_toggle_weight.grid(row=20, column=0, padx=20, pady=5)
 
         # Group 3: Utilities
         self.btn_clear = ctk.CTkButton(parent, text="Xóa bảng vẽ", fg_color="#C0392B", hover_color="#E74C3C", command=self.app.clear_canvas)
-        self.btn_clear.grid(row=20, column=0, padx=20, pady=(20, 10))
+        self.btn_clear.grid(row=21, column=0, padx=20, pady=(20, 10))
 
     def _install_sidebar_mousewheel(self, scrollable_frame: "ctk.CTkScrollableFrame"):
         """Allow scrolling the sidebar with the mouse wheel.

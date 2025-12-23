@@ -279,11 +279,11 @@ class GraphApp(ctk.CTk):
             # Calculate available width
             w = 0
             if hasattr(self.log_container, '_parent_canvas'):
-                 w = self.log_container._parent_canvas.winfo_width()
+                w = self.log_container._parent_canvas.winfo_width()
             elif hasattr(self.log_container, '_canvas'):
-                 w = self.log_container._canvas.winfo_width()
+                w = self.log_container._canvas.winfo_width()
             else:
-                 w = self.log_container.winfo_width()
+                w = self.log_container.winfo_width()
             
             # Subtract padding and icon width (approx 60px)
             wrap = max(int(w - 60), 100)
@@ -631,6 +631,26 @@ class GraphApp(ctk.CTk):
 
     def run_hierholzer(self):
         self.algo_runner.run_hierholzer()
+
+    # --- Animation Controls ---
+
+    def toggle_animation_pause(self):
+        """Toggle pause/resume for the current algorithm animation."""
+        if not hasattr(self, 'algo_runner') or self.algo_runner is None:
+            return True
+        return bool(self.algo_runner.toggle_pause())
+
+    def animation_next(self):
+        """Step forward one animation frame."""
+        if not hasattr(self, 'algo_runner') or self.algo_runner is None:
+            return
+        self.algo_runner.step_next()
+
+    def animation_prev(self):
+        """Step backward one animation frame."""
+        if not hasattr(self, 'algo_runner') or self.algo_runner is None:
+            return
+        self.algo_runner.step_prev()
 
     def show_representations(self):
         if not self.nodes:

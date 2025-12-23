@@ -66,19 +66,28 @@ def dfs(nodes, edges, start_id):
 
     visited = set()
     result = []
-    stack = [start_id]
 
-    while stack:
-        current = stack.pop()
-        if current in visited:
-            continue
-        visited.add(current)
-        result.append(current)
+    def _dfs_from(root_id):
+        stack = [root_id]
+        while stack:
+            current = stack.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            result.append(current)
 
-        # push neighbors in reverse order so that smallest neighbor is visited first
-        for neighbor in reversed(adj.get(current, [])):
-            if neighbor not in visited:
-                stack.append(neighbor)
+            # push neighbors in reverse order so that smallest neighbor is visited first
+            for neighbor in reversed(adj.get(current, [])):
+                if neighbor not in visited:
+                    stack.append(neighbor)
+
+    # Traverse from the requested start node first.
+    _dfs_from(start_id)
+
+    # Then traverse any remaining (unreachable/disconnected) vertices.
+    for node_id in sorted(adj.keys()):
+        if node_id not in visited:
+            _dfs_from(node_id)
 
     return result
 
